@@ -52,6 +52,6 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Database is not connected. Add DATABASE_URL before creating an account." }, { status: 503 });
+    return NextResponse.json({ error: process.env.DATABASE_URL ? "The database is configured but its schema is not ready. Run npx drizzle-kit push --force, then restart the app." : "Database is not configured. Add DATABASE_URL to .env, run npx drizzle-kit push --force, then restart the app." }, { status: 503 });
   }
 }

@@ -27,7 +27,17 @@ Both connection strings normally end with `?sslmode=require`. Keep the password 
 
 ### 2. Put the connection string in `.env`
 
-Create a file named `.env` in the repository root (the same folder as `package.json`) and replace the example with your real URI:
+Copy `.env.example` to a new `.env` file in the repository root (the same folder as `package.json`) and replace the example values with your real values:
+
+```bash
+# macOS/Linux
+cp .env.example .env
+
+# Windows PowerShell
+Copy-Item .env.example .env
+```
+
+Then edit `.env`:
 
 ```bash
 DATABASE_URL='postgresql://YOUR_USER:YOUR_PASSWORD@YOUR_HOST/YOUR_DATABASE?sslmode=require'
