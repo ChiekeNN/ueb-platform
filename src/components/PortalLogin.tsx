@@ -6,6 +6,12 @@ import Navbar from "@/components/Navbar";
 
 type PortalRole = "admin" | "organizer" | "subscriber";
 
+const DEMO_ACCOUNTS: Record<PortalRole, { email: string; password: string }> = {
+  admin: { email: "admin@ueb.ng", password: "admin1234" },
+  organizer: { email: "organizer@ueb.ng", password: "organizer1234" },
+  subscriber: { email: "subscriber@ueb.ng", password: "subscriber1234" },
+};
+
 const PORTALS: Record<PortalRole, { label: string; title: string; description: string; destination: string; icon: string; accent: string }> = {
   admin: {
     label: "Platform admin",
@@ -35,8 +41,9 @@ const PORTALS: Record<PortalRole, { label: string; title: string; description: s
 
 export default function PortalLogin({ role }: { role: PortalRole }) {
   const portal = PORTALS[role];
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const demoAccount = DEMO_ACCOUNTS[role];
+  const [email, setEmail] = useState(demoAccount.email);
+  const [password, setPassword] = useState(demoAccount.password);
   const [busy, setBusy] = useState(false);
 
   const signIn = (event: FormEvent) => {
@@ -74,7 +81,16 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
           <form onSubmit={signIn} className="card p-6 sm:p-8" style={{ boxShadow: "var(--shadow-lg)" }}>
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-5" style={{ background: `${portal.accent}18` }}>{portal.icon}</div>
             <h2 className="heading-2" style={{ color: "var(--text-1)" }}>Sign in to UEB</h2>
-            <p className="mt-1 mb-6" style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Use your email and password to continue.</p>
+            <p className="mt-1 mb-4" style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Use your email and password to continue.</p>
+            <div className="p-3 rounded-xl mb-5" style={{ background: "var(--violet-bg)", border: "1px solid var(--violet-rim)" }}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="label-caps" style={{ color: "var(--violet-mid)", fontSize: "0.58rem" }}>Demo account</p>
+                  <p className="mt-1" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>{demoAccount.email} · {demoAccount.password}</p>
+                </div>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => { setEmail(demoAccount.email); setPassword(demoAccount.password); }}>Use demo</button>
+              </div>
+            </div>
 
             <label className="block mb-4">
               <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-2)", marginBottom: "0.4rem" }}>Email address</span>
