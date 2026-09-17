@@ -47,6 +47,10 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
+    const hasDateWindow = ["today", "tomorrow", "weekend", "week", "month"].includes(when ?? "");
+    // Public discovery is an upcoming-events feed by default. Admin and
+    // organiser views can still request status=all to include past events.
+    if (status === "published" && !hasDateWindow) conditions.push(gte(events.startDate, now));
     if (when && when !== "any") {
       if (when === "today") {
         const end = new Date(startOfToday); end.setHours(23, 59, 59, 999);

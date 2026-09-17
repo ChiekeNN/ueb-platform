@@ -2,7 +2,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { db } from "@/db";
 import { events, registrations, ticketTiers } from "@/db/schema";
-import { eq, sql, desc, inArray } from "drizzle-orm";
+import { eq, sql, asc, inArray, and, gte } from "drizzle-orm";
 import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
 import { DEMO_EVENTS } from "@/lib/demo-events";
@@ -39,7 +39,7 @@ async function getFeatured() {
       totalRegistrations: events.totalRegistrations,
       capacity: events.capacity,
       status: events.status,
-    }).from(events).where(eq(events.status, "published")).orderBy(desc(events.createdAt)).limit(6);
+    }).from(events).where(and(eq(events.status, "published"), gte(events.startDate, new Date()))).orderBy(asc(events.startDate)).limit(6);
 
     if (rows.length === 0) return DEMO_EVENTS.slice(0, 6);
 
@@ -477,8 +477,8 @@ export default async function HomePage() {
         <section className="py-20 max-w-7xl mx-auto px-5 sm:px-8">
           <div className="flex items-end justify-between mb-10">
             <div>
-              <p className="label-caps mb-2" style={{ color: "var(--violet-mid)" }}>Upcoming Events</p>
-              <h2 className="heading-1" style={{ color: "var(--text-1)" }}>Happening now</h2>
+              <p className="label-caps mb-2" style={{ color: "var(--violet-mid)" }}>Upcoming on UEB</p>
+              <h2 className="heading-1" style={{ color: "var(--text-1)" }}>Plan your next event</h2>
             </div>
             <Link href="/events" className="btn btn-outline btn-sm">
               View all →

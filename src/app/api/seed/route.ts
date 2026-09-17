@@ -405,7 +405,9 @@ export async function POST(_req: NextRequest) {
       const online = index === 4;
       const hybrid = index === 5;
       const city = online ? "Online" : catalogueCities[(groupIndex + index) % catalogueCities.length];
-      const startDate = new Date(Date.UTC(2027, 1 + ((groupIndex * 2 + index) % 10), 5 + index, 9 + (index % 5), 0));
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + 14 + groupIndex * 3 + index * 4);
+      startDate.setHours(9 + (index % 5), 0, 0, 0);
       const type = group.category === "training" && index === 5 ? "timeslot" as const : "standard" as const;
       return {
         title,

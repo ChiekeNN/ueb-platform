@@ -117,6 +117,17 @@ export default function Navbar() {
           {/* CTA */}
           <div className="flex items-center gap-3">
             <Link
+              href="/login"
+              className="hidden sm:inline-flex btn btn-sm"
+              style={{
+                background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
+                color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
+                border: !scrolled && isHome ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--violet-rim)",
+              }}
+            >
+              Sign in
+            </Link>
+            <Link
               href="/events/create"
               className="hidden sm:flex btn btn-primary"
               style={{ padding: "0.55rem 1.25rem", fontSize: "0.85rem" }}
@@ -171,7 +182,10 @@ export default function Navbar() {
                 </Link>
               ))}
             </div>
-            <div className="p-4 border-t" style={{ borderColor: "var(--border)" }}>
+            <div className="p-4 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
+              <Link href="/login" className="btn btn-outline w-full justify-center">
+                Sign in
+              </Link>
               <Link href="/events/create" className="btn btn-primary w-full justify-center">
                 + Create Event
               </Link>

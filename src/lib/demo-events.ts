@@ -116,7 +116,9 @@ export const DEMO_EVENTS: DemoEvent[] = Object.entries(CATALOGUE).flatMap(([cate
     const online = index === 4;
     const hybrid = index === 5;
     const city = online ? "Online" : CITIES[(categoryIndex + index) % CITIES.length];
-    const start = new Date(Date.UTC(2027, 1 + ((categoryIndex * 2 + index) % 10), 5 + index, 9 + (index % 5)));
+    const start = new Date();
+    start.setDate(start.getDate() + 14 + categoryIndex * 3 + index * 4);
+    start.setHours(9 + (index % 5), 0, 0, 0);
     const slug = `demo-${slugify(title)}`;
     const price = index % 3 === 0 ? "0" : String(5000 + ((categoryIndex + index) % 6) * 2500);
     const imageUrl = IMAGES[(categoryIndex + index) % IMAGES.length];
