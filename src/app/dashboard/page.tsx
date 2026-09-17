@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [regLoad, setRegLoad] = useState(false);
   const [filter, setFilter]   = useState("all");
   const [seeding, setSeeding] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [toast, setToast]     = useState<{ msg: string; type: "ok"|"err" } | null>(null);
 
   const showToast = (msg: string, type: "ok"|"err" = "ok") => {
@@ -45,6 +46,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/events?status=all");
       const data = await res.json();
+      setDemoMode(Boolean(data.demo));
       setEvents(data.events ?? []);
       if (data.events?.length > 0 && !sel) setSel(data.events[0]);
     } finally { setLoading(false); }
@@ -86,10 +88,20 @@ export default function DashboardPage() {
 
   const seed = async () => {
     setSeeding(true);
-    await fetch("/api/seed", { method:"POST" });
-    await fetchEvents();
-    setSeeding(false);
-    showToast("Demo data loaded!");
+    try {
+      const res = await fetch("/api/seed", { method:"POST" });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(result.error ?? "Connect PostgreSQL before seeding", "err");
+        return;
+      }
+      await fetchEvents();
+      showToast("Database connected and demo events loaded!");
+    } catch {
+      showToast("Connect PostgreSQL before seeding", "err");
+    } finally {
+      setSeeding(false);
+    }
   };
 
   const filtered = filter==="all" ? regs : regs.filter(r => r.status===filter);
@@ -128,9 +140,9 @@ export default function DashboardPage() {
               <h1 className="heading-1" style={{ color:"var(--text-1)" }}>Event Dashboard</h1>
             </div>
             <div className="flex items-center gap-3">
-              {events.length === 0 && (
+              {(events.length === 0 || demoMode) && (
                 <button onClick={seed} disabled={seeding} className="btn btn-outline btn-sm" style={{ opacity:seeding?0.6:1 }}>
-                  {seeding ? "Loading…" : "Load Demo Data"}
+                  {seeding ? "Setting up…" : demoMode ? "Seed database" : "Load Demo Data"}
                 </button>
               )}
               <Link href="/events/create" className="btn btn-primary">+ Create Event</Link>

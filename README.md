@@ -16,20 +16,50 @@ Built first for Nigeria, architected for African expansion and beyond.
 
 ## Running locally
 
+### 1. Create a hosted PostgreSQL database
+
+Use **either Neon or Supabase** — you do not need both.
+
+- **Neon:** create a project, open **Connect**, copy the PostgreSQL connection string. The pooled connection is a good choice for a deployed Next.js app.
+- **Supabase:** create a project, open **Connect**, choose the **Session pooler** connection string, and copy the URI.
+
+Both connection strings normally end with `?sslmode=require`. Keep the password private.
+
+### 2. Put the connection string in `.env`
+
+Create a file named `.env` in the repository root (the same folder as `package.json`) and replace the example with your real URI:
+
 ```bash
-npm install
-echo "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_db" > .env
-npx drizzle-kit push --force     # create the schema
-npm run dev                      # http://localhost:3000
+DATABASE_URL='postgresql://YOUR_USER:YOUR_PASSWORD@YOUR_HOST/YOUR_DATABASE?sslmode=require'
 ```
 
-Then load the demo dataset (a showcase set plus at least 6 first-party events in every category):
+Do not commit `.env` or paste the password into chat. This repository already ignores `.env` files.
+
+### 3. Create UEB's tables in your hosted database
+
+Run these commands from the repository folder:
+
+```bash
+npm install
+npx drizzle-kit push --force
+npm run dev
+```
+
+The `drizzle-kit` configuration reads `DATABASE_URL` from `.env`, so it will create the tables in Neon or Supabase rather than on your own computer.
+
+### 4. Load UEB's first-party events
+
+With the development server running, open a second terminal and run:
 
 ```bash
 curl -X POST http://localhost:3000/api/seed
 ```
 
-…or press **Load Demo Data** on the home page.
+Then open `http://localhost:3000/events` and refresh the page. This creates the showcase events plus at least six UEB-owned events in every category.
+
+You can also use **Seed database** from the organiser dashboard after the database is configured.
+
+For a deployed app, add the same `DATABASE_URL` value to the hosting provider's environment variables, redeploy, and call `/api/seed` on the deployed URL instead of `localhost`. Never commit the connection string.
 
 ## Product surfaces
 
