@@ -88,6 +88,12 @@ payment_reference | checked_in_by`; `invitations.*` (tier, guests, notes, phone)
 
 ## Attendee surfaces — layout idiom
 
+![Discover page](screenshots/01-discovery.jpg)
+![Quick-look pop-out](screenshots/02-quick-look.jpg)
+![Event page](screenshots/03-event-page.jpg)
+![Registration flow](screenshots/04-registration.jpg)
+![Mobile discovery](screenshots/05-mobile.jpg)
+
 Discovery and event pages mirror the card/detail conventions audiences expect
 from large ticketing sites, reimplemented against UEB's own API:
 
