@@ -43,6 +43,9 @@ export async function POST(_req: NextRequest) {
     await db.update(users).set({ passwordHash: await hashPassword("admin1234"), accountStatus: "approved" }).where(eq(users.email, "admin@ueb.ng"));
     await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "chidi@upec.edu.ng"));
     await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "amara@abccorp.ng"));
+    const [demoOrganizer] = await db.select().from(users).where(eq(users.email, "organizer@ueb.ng")).limit(1);
+    if (!demoOrganizer) await db.insert(users).values({ name: "UEB Demo Organiser", email: "organizer@ueb.ng", passwordHash: await hashPassword("organizer1234"), role: "event_owner", accountStatus: "approved", organisation: "Unique Events Booking" });
+    else await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "organizer@ueb.ng"));
     const [subscriberUser] = await db.select().from(users).where(eq(users.email, "subscriber@ueb.ng")).limit(1);
     if (!subscriberUser) await db.insert(users).values({ name: "UEB Subscriber", email: "subscriber@ueb.ng", passwordHash: await hashPassword("subscriber1234"), role: "attendee", accountStatus: "approved" });
 

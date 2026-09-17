@@ -71,7 +71,7 @@ Then open `http://localhost:3000/events` and refresh the page. This creates the 
 You can also use **Seed database** from the organiser dashboard after the database is configured. The seed creates these preview accounts:
 
 - Admin: `admin@ueb.ng` / `admin1234`
-- Approved organiser: `chidi@upec.edu.ng` / `organizer1234`
+- Approved organiser: `organizer@ueb.ng` / `organizer1234`
 - Subscriber: `subscriber@ueb.ng` / `subscriber1234`
 
 ### Access control
