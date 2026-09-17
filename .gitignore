@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment variables (KEEP THIS SECRET — never upload)
+.env
+.env.local
+.env.production
+
+# Next.js build output
+.next/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
