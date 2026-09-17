@@ -280,6 +280,162 @@ export async function POST(_req: NextRequest) {
       },
     ];
 
+    /*
+     * UEB-owned discovery catalogue. This is deliberately local rather than
+     * proxying a competitor's marketplace: organisers and attendees stay on
+     * UEB, and the same first-party /api/events feed powers Home and Discover.
+     * Six entries are created for every category so the category filters are
+     * useful even on a fresh installation.
+     */
+    const catalogue = [
+      {
+        category: "conference" as const,
+        titles: [
+          "Lagos Future Cities Conference", "Africa Product Leaders Conference", "West Africa Health Conference",
+          "Sustainable Business Conference", "Women in Enterprise Conference", "Creative Economy Conference",
+        ],
+      },
+      {
+        category: "seminar" as const,
+        titles: [
+          "Personal Finance Seminar", "Export Readiness Seminar", "Digital Marketing Seminar",
+          "Public Speaking Seminar", "Data Literacy Seminar", "Workplace Wellness Seminar",
+        ],
+      },
+      {
+        category: "workshop" as const,
+        titles: [
+          "No-Code Product Workshop", "Brand Strategy Workshop", "Project Management Workshop",
+          "Food Business Workshop", "Frontend Engineering Workshop", "Grant Writing Workshop",
+        ],
+      },
+      {
+        category: "concert" as const,
+        titles: [
+          "Lagos Live Sessions", "Afrobeats Sunset Concert", "Jazz by the Lagoon",
+          "Northern Sounds Live", "Indie Night Lagos", "Praise & Culture Concert",
+        ],
+      },
+      {
+        category: "corporate" as const,
+        titles: [
+          "Annual Strategy Offsite", "Customer Experience Forum", "People & Culture Summit",
+          "Finance Leaders Roundtable", "Sales Excellence Bootcamp", "Boardroom Breakfast",
+        ],
+      },
+      {
+        category: "university" as const,
+        titles: [
+          "Campus Innovation Fair", "Alumni Homecoming", "Student Research Showcase",
+          "University Debate Open", "Freshers Welcome Week", "Interfaculty Games",
+        ],
+      },
+      {
+        category: "church" as const,
+        titles: [
+          "Lagos Worship Night", "Young Adults Retreat", "Women of Purpose Conference",
+          "Men of Faith Breakfast", "Family Life Weekend", "Community Outreach Day",
+        ],
+      },
+      {
+        category: "government" as const,
+        titles: [
+          "Public Service Innovation Forum", "Lagos SME Policy Dialogue", "Open Data Stakeholder Forum",
+          "Climate Resilience Roundtable", "Citizen Engagement Town Hall", "Local Government Leadership Forum",
+        ],
+      },
+      {
+        category: "wedding" as const,
+        titles: [
+          "Ada & Tobi Wedding Celebration", "Chinwe & Kelechi Traditional Wedding", "Maya & Femi White Wedding",
+          "Sade & Dapo Engagement Party", "Amaka & Chinedu Garden Wedding", "Zainab & Ibrahim Nikah",
+        ],
+      },
+      {
+        category: "networking" as const,
+        titles: [
+          "Founders & Funders Mixer", "Lagos Product People Meetup", "Women Build Africa Mixer",
+          "Creative Professionals Social", "Diaspora Connect Nigeria", "Real Estate Leaders Mixer",
+        ],
+      },
+      {
+        category: "training" as const,
+        titles: [
+          "Excel for Business Training", "Leadership Essentials Training", "Cybersecurity Awareness Training",
+          "Customer Service Training", "Financial Modelling Training", "First Aid at Work Training",
+        ],
+      },
+      {
+        category: "exhibition" as const,
+        titles: [
+          "Lagos Art & Design Exhibition", "Made in Nigeria Trade Fair", "Photography Open Showcase",
+          "Future Mobility Exhibition", "Food & Culture Market", "African Design Week",
+        ],
+      },
+      {
+        category: "fundraising" as const,
+        titles: [
+          "Run for Education", "Community Health Benefit", "Children's Scholarship Dinner",
+          "Creative Arts Fundraiser", "Food Bank Giving Day", "Climate Action Fundraiser",
+        ],
+      },
+      {
+        category: "private" as const,
+        titles: [
+          "Executive Dinner Series", "Invite-Only Founder Circle", "Private Film Screening",
+          "Family Heritage Celebration", "Collectors Preview Night", "Members Garden Party",
+        ],
+      },
+      {
+        category: "other" as const,
+        titles: [
+          "Lagos Community Day", "Saturday Makers Market", "New Beginnings Meetup",
+          "The Local Experience", "Ideas Worth Sharing", "Open Mic & Stories",
+        ],
+      },
+    ] as const;
+
+    const catalogueImages = [
+      "/events/summit.jpg", "/events/workshop.jpg", "/events/tech-festival.jpg",
+      "/events/convention.jpg", "/events/masterclass.jpg", "/events/startup-clinic.jpg",
+    ];
+    const catalogueCities = ["Lagos", "Abuja", "Port Harcourt", "Ibadan"];
+    const catalogueColors = ["#7C3AED", "#2563EB", "#059669", "#DC2626", "#D97706", "#0891B2"];
+    const catalogueEvents = catalogue.flatMap((group, groupIndex) => group.titles.map((title, index) => {
+      const online = index === 4;
+      const hybrid = index === 5;
+      const city = online ? "Online" : catalogueCities[(groupIndex + index) % catalogueCities.length];
+      const startDate = new Date(Date.UTC(2027, 1 + ((groupIndex * 2 + index) % 10), 5 + index, 9 + (index % 5), 0));
+      const type = group.category === "training" && index === 5 ? "timeslot" as const : "standard" as const;
+      return {
+        title,
+        tagline: `${group.category[0].toUpperCase()}${group.category.slice(1)} experiences curated for Nigeria's next generation of organisers and communities.`,
+        description: `Join this UEB ${group.category} event for practical sessions, trusted connections and an experience designed around the people in the room.`,
+        category: group.category,
+        type,
+        format: online ? "online" as const : hybrid ? "hybrid" as const : "in_person" as const,
+        startDate,
+        endDate: new Date(startDate.getTime() + (index % 2 === 0 ? 8 : 4) * 60 * 60 * 1000),
+        venue: online ? "UEB Live" : `${city} Event Centre`,
+        city,
+        capacity: 120 + (index * 80) + (groupIndex * 20),
+        imageUrl: catalogueImages[(groupIndex + index) % catalogueImages.length],
+        gallery: [catalogueImages[(groupIndex + index) % catalogueImages.length]],
+        bannerColor: catalogueColors[(groupIndex + index) % catalogueColors.length],
+        highlights: [
+          "Branded registration and digital ticketing on UEB",
+          "Connect with attendees, speakers and partners",
+          "QR check-in and live attendance tracking",
+        ],
+        faqs: [],
+        requiresApproval: group.category === "private" || index === 2,
+        status: "published" as const,
+        listed: true,
+      };
+    }));
+    const allDemoEvents = [...demoEvents, ...catalogueEvents];
+    const originalDemoEventCount = demoEvents.length;
+
     const ticketData = [
       [
         { name: "Early Bird", type: "early_bird" as const, price: "15000", quantity: 500 },
@@ -315,8 +471,8 @@ export async function POST(_req: NextRequest) {
     let backfilled = 0;
     let created = 0;
 
-    for (let i = 0; i < demoEvents.length; i++) {
-      const eventData = demoEvents[i];
+    for (let i = 0; i < allDemoEvents.length; i++) {
+      const eventData = allDemoEvents[i];
       const slug = slugify(eventData.title) + "-" + nanoid(6);
 
       const org = orgs[i % 3 === 2 ? 2 : i % 3];
@@ -363,7 +519,14 @@ export async function POST(_req: NextRequest) {
         totalRevenue: "0",
       }).returning();
 
-      const tiers = ticketData[i];
+      const tiers = ticketData[i] ?? [
+        {
+          name: eventData.requiresApproval ? "Application Pass" : "General Admission",
+          type: eventData.requiresApproval ? "invitation_only" as const : "paid" as const,
+          price: eventData.requiresApproval ? "0" : String(5000 + ((i - originalDemoEventCount) % 6) * 2500),
+          quantity: eventData.capacity ?? 250,
+        },
+      ];
       const insertedTiers = [];
       for (const tier of tiers) {
         const [t] = await db.insert(ticketTiers).values({ eventId: event.id, ...tier, price: tier.price.toString() }).returning();
@@ -409,7 +572,9 @@ export async function POST(_req: NextRequest) {
       }
 
       /* ── Sample registrations ── */
-      const numRegs = Math.floor(Math.random() * 8) + 3;
+      // Keep the curated catalogue lightweight; the seven showcase events
+      // retain the richer sample registrations used by the organiser screens.
+      const numRegs = i < originalDemoEventCount ? Math.floor(Math.random() * 8) + 3 : 0;
       const statuses: ("pending" | "approved" | "rejected" | "on_hold")[] = ["approved", "approved", "approved", "pending", "approved", "rejected", "approved", "approved", "on_hold", "approved"];
       let totalRev = 0;
       const createdRegs: (typeof registrations.$inferSelect)[] = [];
@@ -522,7 +687,7 @@ export async function POST(_req: NextRequest) {
       }
 
       /* ── Vendors ── */
-      if (i % 2 === 0) {
+      if (i < originalDemoEventCount && i % 2 === 0) {
         await db.insert(vendors).values(
           [
             { name: "Mama's Kitchen", category: "Food & Beverage", contactName: "Ngozi Eze", email: "ngozzi@mamaskitchen.ng", stallNumber: "A1", fee: "150000", amountPaid: "150000", status: "confirmed" },

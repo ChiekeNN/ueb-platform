@@ -23,7 +23,7 @@ npx drizzle-kit push --force     # create the schema
 npm run dev                      # http://localhost:3000
 ```
 
-Then load the demo dataset (7 events covering every event type):
+Then load the demo dataset (a showcase set plus at least 6 first-party events in every category):
 
 ```bash
 curl -X POST http://localhost:3000/api/seed
@@ -74,6 +74,13 @@ already know from large ticketing sites, but every link stays inside UEB:
 `format`, `when=today|tomorrow|weekend|week|month`, `sort=date|newest`,
 `search`, `limit` (≤120) and `tiers=1` to hydrate ticket types, next session
 date, session and slot counts plus the organiser/org profile in one round trip.
+
+The demo catalogue is first-party UEB data: `POST /api/seed` creates at least six
+published events in every category, with local covers and UEB-owned registration,
+payment, ticket and check-in flows. Discovery cards link only to UEB event pages;
+there is no Eventbrite, Ticketmaster or other competitor handoff. Replace the
+catalogue seed records with organiser-created events as production data arrives,
+without changing the discovery API or card experience.
 
 ### Layout rule (important)
 

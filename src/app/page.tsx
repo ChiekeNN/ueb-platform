@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { db } from "@/db";
-import { events, registrations } from "@/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { events, registrations, ticketTiers } from "@/db/schema";
+import { eq, sql, desc, inArray } from "drizzle-orm";
 import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,12 +17,37 @@ async function getStats() {
 
 async function getFeatured() {
   try {
-    return await db.select({
-      id: events.id, title: events.title, slug: events.slug, description: events.description,
-      category: events.category, startDate: events.startDate, venue: events.venue, city: events.city,
-      imageUrl: events.imageUrl, bannerColor: events.bannerColor, totalRegistrations: events.totalRegistrations,
-      capacity: events.capacity, status: events.status,
+    const rows = await db.select({
+      id: events.id,
+      title: events.title,
+      slug: events.slug,
+      tagline: events.tagline,
+      description: events.description,
+      category: events.category,
+      type: events.type,
+      format: events.format,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      venue: events.venue,
+      city: events.city,
+      imageUrl: events.imageUrl,
+      bannerColor: events.bannerColor,
+      totalRegistrations: events.totalRegistrations,
+      capacity: events.capacity,
+      status: events.status,
     }).from(events).where(eq(events.status, "published")).orderBy(desc(events.createdAt)).limit(6);
+
+    const ids = rows.map((row) => row.id);
+    const tiers = ids.length
+      ? await db.select({ id: ticketTiers.id, eventId: ticketTiers.eventId, name: ticketTiers.name, price: ticketTiers.price, type: ticketTiers.type })
+        .from(ticketTiers)
+        .where(inArray(ticketTiers.eventId, ids))
+      : [];
+
+    return rows.map((row) => ({
+      ...row,
+      tiers: tiers.filter((tier) => tier.eventId === row.id),
+    }));
   } catch { return []; }
 }
 

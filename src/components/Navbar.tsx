@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const NAV_LINKS = [
+  { href: "/",         label: "Home" },
   { href: "/events",   label: "Discover" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/checkin",  label: "Check-In" },
@@ -77,7 +78,7 @@ export default function Navbar() {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
             {NAV_LINKS.map(link => {
-              const active = path.startsWith(link.href);
+              const active = link.href === "/" ? path === "/" : path.startsWith(link.href);
               const light = !scrolled && isHome;
               return (
                 <Link
@@ -162,8 +163,8 @@ export default function Navbar() {
                   href={link.href}
                   className="flex items-center px-4 py-3 rounded-xl font-semibold text-sm transition-colors"
                   style={{
-                    color: path.startsWith(link.href) ? "var(--violet-mid)" : "var(--text-1)",
-                    background: path.startsWith(link.href) ? "var(--violet-bg)" : "transparent",
+                    color: (link.href === "/" ? path === "/" : path.startsWith(link.href)) ? "var(--violet-mid)" : "var(--text-1)",
+                    background: (link.href === "/" ? path === "/" : path.startsWith(link.href)) ? "var(--violet-bg)" : "transparent",
                   }}
                 >
                   {link.label}
