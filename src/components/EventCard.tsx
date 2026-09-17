@@ -1,159 +1,183 @@
+"use client";
 import Link from "next/link";
-import { formatDate, formatCurrency, EVENT_CATEGORIES } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import {
+  eventDateWithMore,
+  formatCurrency,
+  locationLine,
+  priceSummaryLabel,
+  formatLabel,
+  eventDateShort,
+} from "@/lib/utils";
+import { useSavedEvents } from "@/lib/useSavedEvents";
 
-type EventCardProps = {
+export type EventCardData = {
   id: string;
   title: string;
   slug: string;
+  tagline?: string | null;
   description?: string | null;
   category?: string | null;
-  startDate?: Date | string | null;
+  type?: string | null;
+  format?: string | null;
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
   venue?: string | null;
   city?: string | null;
   imageUrl?: string | null;
   bannerColor?: string | null;
-  totalRegistrations?: number | null;
   capacity?: number | null;
-  status?: string | null;
-  tiers?: { type: string; price: string }[];
+  totalRegistrations?: number | null;
+  soldOut?: boolean | null;
+  organiserName?: string | null;
+  organiserOrg?: string | null;
+  organiserFollowers?: number | null;
+  nextSessionDate?: string | Date | null;
+  sessionCount?: number | null;
+  timeSlotCount?: number | null;
+  tiers?: { id: string; name: string; price: string | number | null; type?: string | null }[] | null;
 };
 
 const CAT_ICONS: Record<string, string> = {
-  conference: "🎤", seminar: "📚", workshop: "🔧", concert: "🎸",
-  corporate: "💼", university: "🎓", church: "⛪", government: "🏛️",
-  wedding: "💍", networking: "🤝", training: "📋", exhibition: "🖼️",
+  conference: "🎤", seminar: "📚", workshop: "🔧", concert: "🎸", corporate: "💼", university: "🎓",
+  church: "⛪", government: "🏛️", wedding: "💍", networking: "🤝", training: "📋", exhibition: "🖼️",
   fundraising: "💝", private: "🔒", other: "🎪",
 };
 
-export default function EventCard({ event }: { event: EventCardProps }) {
-  const categoryLabel = EVENT_CATEGORIES.find(c => c.value === event.category)?.label ?? "Event";
-  const catIcon = CAT_ICONS[event.category ?? "other"] ?? "🎪";
-  const lowestPaid = event.tiers?.filter(t => parseFloat(t.price) > 0).sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0];
-  const hasFree = !event.tiers?.length || event.tiers.some(t => parseFloat(t.price) === 0);
-  const priceLabel = hasFree ? "Free" : lowestPaid ? `From ${formatCurrency(parseFloat(lowestPaid.price))}` : "Free";
-  const isFree = priceLabel === "Free";
+/** Renders the cover: uploaded image when present, otherwise a category-tinted banner. */
+export function EventCover({ event, height = 190, rounded = "16px 16px 0 0" }: { event: EventCardData; height?: number | string; rounded?: string }) {
+  const [failed, setFailed] = useState(false);
+  const showImage = !!event.imageUrl && !failed;
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{
+        height,
+        borderRadius: rounded,
+        background: event.imageUrl
+          ? "var(--surface-2)"
+          : `linear-gradient(135deg, ${event.bannerColor ?? "#7C3AED"} 0%, ${event.bannerColor ?? "#4C1D95"}99 100%)`,
+      }}
+    >
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={event.imageUrl as string}
+          alt={event.title}
+          onError={() => setFailed(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ fontSize: "2.4rem", opacity: 0.9 }}>
+          {CAT_ICONS[event.category ?? "other"] ?? "🎪"}
+        </div>
+      )}
+      {(event.soldOut || (event.capacity && event.totalRegistrations && event.totalRegistrations >= event.capacity)) && (
+        <span className="badge badge-red" style={{ position: "absolute", top: 10, left: 10, fontSize: "0.62rem" }}>
+          Sold out
+        </span>
+      )}
+    </div>
+  );
+}
 
-  const pct = event.capacity && event.totalRegistrations
-    ? Math.min(100, Math.round((event.totalRegistrations / event.capacity) * 100))
-    : 0;
-  const nearFull = pct >= 80;
+export default function EventCard({ event, onOpen }: { event: EventCardData; onOpen?: (slug: string) => void }) {
+  const { isSaved, toggle } = useSavedEvents();
+  const saved = isSaved(event.slug);
+
+  const price = priceSummaryLabel(event.tiers ?? []);
+  const upcoming = event.nextSessionDate ?? event.startDate;
+  const extraDates = Math.max((event.sessionCount ?? 0) - 1, 0);
+  const organiser = event.organiserOrg ?? event.organiserName ?? "UEB organiser";
+
+  const open = (e: React.MouseEvent) => {
+    if (!onOpen) return;
+    e.preventDefault();
+    onOpen(event.slug);
+  };
 
   return (
-    <Link href={`/events/${event.slug}`} className="block group card card-lift">
-      {/* Image / Banner */}
-      <div
-        className="relative overflow-hidden"
-        style={{
-          height: 168,
-          background: event.imageUrl
-            ? `url(${event.imageUrl}) center/cover no-repeat`
-            : `linear-gradient(145deg, ${event.bannerColor ?? "#6D28D9"}CC, ${event.bannerColor ?? "#4C1D95"})`,
-          borderRadius: "20px 20px 0 0",
-        }}
-      >
-        {/* Overlay */}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.55) 100%)" }} />
-
-        {/* Top row */}
-        <div className="absolute top-3.5 left-3.5 right-3.5 flex items-center justify-between">
-          <span
-            className="flex items-center gap-1.5 label-caps text-white/90 px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(8px)" }}
-          >
-            <span>{catIcon}</span> {categoryLabel}
-          </span>
-          <span
-            className="font-bold text-xs px-2.5 py-1 rounded-full"
-            style={{
-              background: isFree ? "rgba(5,150,105,0.9)" : "rgba(255,255,255,0.95)",
-              color: isFree ? "#fff" : "#4C1D95",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            {priceLabel}
-          </span>
-        </div>
-
-        {/* Hover overlay */}
-        <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center"
-          style={{ background: "rgba(109,40,217,0.15)" }}
+    <article className="group" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div className="relative">
+        <Link href={`/events/${event.slug}`} onClick={open} aria-label={event.title} style={{ display: "block" }}>
+          <EventCover event={event} height={186} />
+        </Link>
+        <button
+          type="button"
+          aria-label={saved ? "Remove from saved" : "Save this event"}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(event.slug); }}
+          style={{
+            position: "absolute", top: 10, right: 10,
+            width: 34, height: 34, borderRadius: 999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(255,255,255,0.92)", backdropFilter: "blur(6px)",
+            border: "1px solid rgba(10,10,15,0.08)", cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(10,10,15,0.12)",
+          }}
         >
-          <span
-            className="btn btn-white px-5"
-            style={{ fontSize: "0.8rem", padding: "0.5rem 1.25rem", transform: "translateY(6px)", transition: "transform 0.3s cubic-bezier(.22,.68,0,1.2)" }}
-          >
-            View Event →
-          </span>
-        </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill={saved ? "#DC2626" : "none"} stroke={saved ? "#DC2626" : "#3D3D5C"} strokeWidth="1.6">
+            <path d="M8 14s-5.5-3.4-5.5-7A3.2 3.2 0 0 1 8 4.6 3.2 3.2 0 0 1 13.5 7c0 3.6-5.5 7-5.5 7z" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
-      {/* Body */}
-      <div className="p-5">
-        <h3
-          className="font-bold leading-snug mb-2 truncate-2 group-hover:text-violet-600 transition-colors duration-200"
-          style={{ fontSize: "0.97rem", color: "var(--text-1)", letterSpacing: "-0.015em" }}
-        >
-          {event.title}
-        </h3>
+      <div style={{ paddingTop: "0.85rem", display: "flex", flexDirection: "column", gap: "0.3rem", flex: 1 }}>
+        <p style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--violet-mid)", letterSpacing: "0.01em" }}>
+          {upcoming ? eventDateWithMore(upcoming, extraDates) : "Date to be announced"}
+        </p>
 
-        {event.description && (
-          <p className="truncate-2 mb-3" style={{ fontSize: "0.8rem", color: "var(--text-3)", lineHeight: 1.55 }}>
-            {event.description}
-          </p>
-        )}
-
-        <div className="space-y-1.5 mb-4">
-          {event.startDate && (
-            <div className="flex items-center gap-2" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color: "var(--violet-hi)", flexShrink: 0 }}>
-                <rect x="1" y="2" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.3"/>
-                <path d="M1 5h11M4 1v2M9 1v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              </svg>
-              <span className="font-medium">{formatDate(event.startDate)}</span>
-            </div>
-          )}
-          {(event.venue || event.city) && (
-            <div className="flex items-center gap-2" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>
-              <svg width="11" height="13" viewBox="0 0 11 13" fill="none" style={{ color: "var(--violet-hi)", flexShrink: 0 }}>
-                <path d="M5.5 1C3.015 1 1 3.015 1 5.5c0 3.25 4.5 7 4.5 7s4.5-3.75 4.5-7C10 3.015 7.985 1 5.5 1z" stroke="currentColor" strokeWidth="1.3"/>
-                <circle cx="5.5" cy="5.5" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
-              </svg>
-              <span className="truncate font-medium">{[event.venue, event.city].filter(Boolean).join(", ")}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Capacity bar */}
-        {event.capacity ? (
-          <div>
-            <div className="flex justify-between mb-1" style={{ fontSize: "0.72rem" }}>
-              <span style={{ color: "var(--text-3)" }}>{event.totalRegistrations ?? 0} registered</span>
-              <span style={{ color: nearFull ? "var(--red)" : "var(--text-3)", fontWeight: 600 }}>
-                {nearFull ? `${100 - pct}% left` : `${event.capacity} spots`}
-              </span>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill"
-                style={{
-                  width: `${pct}%`,
-                  background: nearFull
-                    ? "linear-gradient(90deg, #DC2626, #EF4444)"
-                    : "linear-gradient(90deg, var(--violet), var(--violet-hi))",
-                }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div
-            className="flex items-center gap-1.5"
-            style={{ fontSize: "0.75rem", color: "var(--text-3)" }}
+        <Link href={`/events/${event.slug}`} onClick={open}>
+          <h3
+            className="truncate-2"
+            style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-0.02em", lineHeight: 1.35, transition: "color 0.15s" }}
           >
-            <span style={{ color: "var(--green)" }}>●</span>
-            <span>{event.totalRegistrations ?? 0} registered · Open capacity</span>
-          </div>
-        )}
+            {event.title}
+          </h3>
+        </Link>
+
+        <p className="truncate-2" style={{ fontSize: "0.82rem", color: "var(--text-3)", lineHeight: 1.5 }}>
+          {event.tagline ?? locationLine(event.city, event.venue, event.format)}
+        </p>
+
+        <p style={{ fontSize: "0.8rem", fontWeight: 700, color: price.free ? "var(--green)" : "var(--text-1)", textDecoration: price.free ? "underline" : "none", marginTop: "0.15rem" }}>
+          {price.label}
+        </p>
+
+        <div style={{ marginTop: "auto", paddingTop: "0.6rem" }}>
+          <p style={{ fontSize: "0.78rem", color: "var(--text-2)", fontWeight: 600 }} className="truncate-2">
+            {organiser}
+          </p>
+          <p style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
+            {event.organiserFollowers ? `${event.organiserFollowers.toLocaleString()} followers` : formatLabel(event.format)}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Small horizontal row card used in "You might also like…" rails. */
+export function EventRowCard({ event, onOpen }: { event: EventCardData; onOpen?: (slug: string) => void }) {
+  return (
+    <Link
+      href={`/events/${event.slug}`}
+      onClick={(e) => { if (onOpen) { e.preventDefault(); onOpen(event.slug); } }}
+      className="flex gap-3 items-center p-2 rounded-xl transition-colors"
+      style={{ border: "1px solid var(--border)", background: "#fff" }}
+    >
+      <div style={{ width: 96, flexShrink: 0 }}>
+        <EventCover event={event} height={68} rounded="10px" />
+      </div>
+      <div className="min-w-0">
+        <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--violet-mid)" }}>
+          {eventDateShort(event.nextSessionDate ?? event.startDate)}
+        </p>
+        <p className="truncate-2" style={{ fontSize: "0.86rem", fontWeight: 700, color: "var(--text-1)", lineHeight: 1.35 }}>
+          {event.title}
+        </p>
+        <p style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
+          {formatCurrency(priceSummaryLabel(event.tiers ?? []).minPrice)} · {locationLine(event.city, event.venue, event.format)}
+        </p>
       </div>
     </Link>
   );

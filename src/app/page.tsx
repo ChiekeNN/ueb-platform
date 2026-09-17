@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import { db } from "@/db";
 import { events, registrations } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
-import EventCard from "@/components/EventCard";
+import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
 
 async function getStats() {
@@ -28,110 +28,164 @@ async function getFeatured() {
 
 const WORKFLOW = ["Create", "Publish", "Register", "Approve", "Pay", "Ticket", "Verify", "Attend", "Analyse", "Report"];
 
-const FEATURES = [
+/** The 25 capabilities from the UEB product brief, grouped into the four pillars an organiser thinks in. */
+const CAPABILITIES = [
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="1" y="4" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M7 4V2M15 4V2M1 9h20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <circle cx="7" cy="14" r="1.2" fill="currentColor"/>
-        <circle cx="11" cy="14" r="1.2" fill="currentColor"/>
-        <circle cx="15" cy="14" r="1.2" fill="currentColor"/>
-      </svg>
-    ),
-    title: "Every Event Type",
-    desc: "Standard, recurring, virtual, hybrid, time-slot appointments. One platform handles them all.",
+    title: "Create & publish",
+    icon: "🗂️",
+    accent: "var(--violet-mid)",
+    items: [
+      "Create events",
+      "Publish event pages",
+      "Create recurring events",
+      "Create appointment / time-slot events",
+      "Manage post-event activities",
+    ],
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M11 1L13.9 7.26L21 8.27L16 13.14L17.18 20.22L11 17.14L4.82 20.22L6 13.14L1 8.27L8.1 7.26L11 1Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    title: "Smart Ticketing",
-    desc: "Free, paid, VIP, group, early-bird, and invitation-only tickets with full inventory control.",
+    title: "Ticketing & registration",
+    icon: "🎫",
+    accent: "#0891B2",
+    items: [
+      "Sell free and paid tickets",
+      "Manage guest registrations",
+      "Approve or reject attendees",
+      "Manage individual and group tickets",
+      "Create invitation-only tickets",
+      "Collect customised attendee information",
+      "Send invitations",
+      "Process payments",
+    ],
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M9 11l2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 11a9 9 0 1 0 18 0 9 9 0 0 0-18 0z" stroke="currentColor" strokeWidth="1.6"/>
-      </svg>
-    ),
-    title: "Approval Workflow",
-    desc: "Review each attendee. Approve, reject, or hold. Automatic ticket generation on approval.",
+    title: "On the day",
+    icon: "📱",
+    accent: "var(--green)",
+    items: [
+      "Generate unique digital tickets",
+      "Generate QR codes",
+      "Verify attendees at the venue",
+      "Manage seating",
+      "Manage vendors",
+      "Monitor attendance",
+    ],
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="2" y="2" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6"/>
-        <rect x="12" y="2" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6"/>
-        <rect x="2" y="12" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M12 12h2v2h-2zM16 12h2M12 16v2M16 16h2v2h-2M16 14v1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    title: "QR Code Entry",
-    desc: "Every ticket gets a unique QR code. Fast, secure smartphone verification at any venue.",
-  },
-  {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M2 17l4-4 4 2 5-6 5 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 2v18h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    title: "Live Analytics",
-    desc: "Real-time dashboards — registrations, revenue, check-in rates, no-shows and more.",
-  },
-  {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M20 6H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="1.6"/>
-        <circle cx="11" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.6"/>
-        <circle cx="4.5" cy="12" r="1" fill="currentColor"/>
-        <circle cx="17.5" cy="12" r="1" fill="currentColor"/>
-      </svg>
-    ),
-    title: "Flexible Payments",
-    desc: "Paystack, Flutterwave, bank transfer. Pass fees to attendees or absorb them.",
-  },
-  {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M4 4h14v10H4z" stroke="currentColor" strokeWidth="1.6" rx="2"/>
-        <path d="M8 18h6M11 14v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <path d="M8 8h6M8 11h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    title: "Invitation System",
-    desc: "Invite guests directly. Track opens, registrations, and attendance per invitation.",
-  },
-  {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M3 6h16M3 10h16M3 14h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <circle cx="17" cy="17" r="3.5" fill="var(--violet-bg)" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M15.5 17l1 1 2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    title: "Post-Event Reports",
-    desc: "Automatic event performance reports with attendance, revenue, and no-show analytics.",
+    title: "Insight & follow-up",
+    icon: "📈",
+    accent: "#B45309",
+    items: [
+      "Communicate with attendees",
+      "Generate event reports",
+      "Analyse ticket sales and attendance",
+      "Manage post-event activities",
+    ],
   },
 ];
 
-const MARKETS = [
-  { icon: "🎓", label: "Universities" },
-  { icon: "💼", label: "Corporate" },
-  { icon: "⛪", label: "Churches" },
-  { icon: "🏛️", label: "Government" },
-  { icon: "🎸", label: "Concerts" },
+const FEATURES = [
+  {
+    icon: "🗓️",
+    title: "Every Event Type",
+    desc: "Standard, recurring series, appointment windows, virtual and hybrid — one platform handles them all.",
+  },
+  {
+    icon: "🎫",
+    title: "Smart Ticketing",
+    desc: "Free, paid, VIP, group, early-bird and invitation-only tiers with live inventory control.",
+  },
+  {
+    icon: "✅",
+    title: "Approval Workflow",
+    desc: "Review each guest, approve, hold or reject in bulk. Tickets are issued automatically on approval.",
+  },
+  {
+    icon: "📲",
+    title: "QR Code Entry",
+    desc: "Every ticket carries a unique QR code. Fast smartphone verification with a full scan audit trail.",
+  },
+  {
+    icon: "💳",
+    title: "Flexible Payments",
+    desc: "Paystack, Flutterwave, transfer or cash. Absorb the processing fee or pass it to the attendee.",
+  },
+  {
+    icon: "💌",
+    title: "Invitation System",
+    desc: "Invite guests directly, issue invite codes and track opens, registrations and attendance.",
+  },
+  {
+    icon: "🪑",
+    title: "Seating Plans",
+    desc: "Build sections and rows, auto-seat approved guests by ticket tier, and block or release seats.",
+  },
+  {
+    icon: "🏪",
+    title: "Vendor Management",
+    desc: "Track exhibitors and vendors, stall numbers, fees charged and payments collected.",
+  },
+  {
+    icon: "📣",
+    title: "Attendee Comms",
+    desc: "Email, SMS and WhatsApp announcements to any segment — approved, unpaid, checked in or not.",
+  },
+  {
+    icon: "🚪",
+    title: "Door Check-In",
+    desc: "Verify by QR scan or ticket number with duplicate and unpaid-ticket detection built in.",
+  },
+  {
+    icon: "📊",
+    title: "Live Analytics",
+    desc: "Real-time dashboards for registrations, revenue, sales by tier, check-in velocity and no-shows.",
+  },
+  {
+    icon: "🧾",
+    title: "Reports & Post-Event",
+    desc: "One-click CSV exports, feedback surveys, thank-you campaigns and close-out checklists.",
+  },
+];
+
+const SEGMENTS = [
+  { icon: "💼", label: "Corporate events" },
+  { icon: "🎤", label: "Conferences" },
+  { icon: "🎓", label: "University events" },
+  { icon: "🏛️", label: "Government events" },
+  { icon: "⛪", label: "Church events" },
   { icon: "💍", label: "Weddings" },
-  { icon: "🤝", label: "Networking" },
-  { icon: "🔬", label: "Seminars" },
-  { icon: "📋", label: "Training" },
+  { icon: "📚", label: "Seminars" },
+  { icon: "🔧", label: "Workshops" },
+  { icon: "📋", label: "Training programmes" },
   { icon: "🖼️", label: "Exhibitions" },
-  { icon: "💝", label: "Fundraising" },
-  { icon: "🔒", label: "Private" },
+  { icon: "🤝", label: "Networking events" },
+  { icon: "🎸", label: "Concerts" },
+  { icon: "🔒", label: "Private events" },
+  { icon: "🧑‍⚖️", label: "Professional associations" },
+  { icon: "💝", label: "Fundraising events" },
+];
+
+const ROADMAP = [
+  {
+    phase: "Now",
+    title: "Nigeria",
+    body: "Lagos, Abuja and Port Harcourt first — naira pricing, local payment rails and venue-ready check-in.",
+    icon: "🇳🇬",
+    active: true,
+  },
+  {
+    phase: "Next",
+    title: "African markets",
+    body: "Ghana, Kenya, South Africa and Rwanda with multi-currency pricing, multi-language event pages and regional payouts.",
+    icon: "🌍",
+    active: false,
+  },
+  {
+    phase: "Then",
+    title: "International",
+    body: "The long-term vision: UEB as the digital infrastructure for events, anywhere organisers run them.",
+    icon: "🛰️",
+    active: false,
+  },
 ];
 
 export default async function HomePage() {
@@ -142,7 +196,7 @@ export default async function HomePage() {
     <div style={{ background: "var(--surface)" }}>
       <Navbar />
 
-      {/* ─── HERO ─────────────────────────────────────────────── */}
+      {/* ─── HERO (centred + boxed) ───────────────────────────── */}
       <section
         className="relative overflow-hidden noise"
         style={{
@@ -152,13 +206,13 @@ export default async function HomePage() {
           alignItems: "center",
         }}
       >
-        {/* Ambient glow blobs */}
+        {/* Ambient glows — mirrored either side of the centre line so the layout stays balanced */}
         <div
           className="absolute anim-glow"
           style={{
-            top: "15%", left: "60%",
-            width: 600, height: 600,
-            background: "radial-gradient(circle, rgba(124,58,237,0.22) 0%, transparent 70%)",
+            top: "18%", left: "50%",
+            width: 720, height: 720,
+            background: "radial-gradient(circle, rgba(124,58,237,0.22) 0%, transparent 68%)",
             transform: "translate(-50%,-50%)",
             pointerEvents: "none",
           }}
@@ -166,9 +220,19 @@ export default async function HomePage() {
         <div
           className="absolute"
           style={{
-            top: "70%", left: "10%",
-            width: 400, height: 400,
-            background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)",
+            top: "55%", left: "12%",
+            width: 420, height: 420,
+            background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 70%)",
+            transform: "translate(-50%,-50%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="absolute"
+          style={{
+            top: "55%", left: "88%",
+            width: 420, height: 420,
+            background: "radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)",
             transform: "translate(-50%,-50%)",
             pointerEvents: "none",
           }}
@@ -186,10 +250,10 @@ export default async function HomePage() {
           }}
         />
 
-        <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 pt-32 pb-24 w-full">
-          <div className="max-w-4xl">
+        <div className="hero-shell relative z-10 pt-32 pb-24">
+          <div className="hero-panel anim-fadeUp">
             {/* Eyebrow badge */}
-            <div className="anim-fadeUp flex items-center gap-2.5 mb-10">
+            <div className="flex items-center gap-2.5 mb-8">
               <div className="flex items-center gap-2 glass px-4 py-2 rounded-full" style={{ borderColor: "rgba(255,255,255,0.15)" }}>
                 <span className="w-2 h-2 rounded-full anim-pulse-ring" style={{ background: "#4ADE80" }} />
                 <span style={{ fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.85)" }}>
@@ -199,16 +263,27 @@ export default async function HomePage() {
             </div>
 
             {/* Headline */}
-            <h1 className="display-1 text-white anim-fadeUp delay-1 mb-6">
+            <h1 className="display-1 text-white anim-fadeUp delay-1 mb-6" style={{ textAlign: "center" }}>
               One platform.<br />
               <span className="text-grad-violet">Every event.</span>
             </h1>
 
-            <p className="anim-fadeUp delay-2 mb-10" style={{ fontSize: "clamp(1rem, 2vw, 1.2rem)", color: "rgba(255,255,255,0.65)", maxWidth: 580, lineHeight: 1.7, fontWeight: 400 }}>
-              Create, publish, sell tickets, manage registrations, verify attendees, and analyse performance — all in one elegant platform built for Africa.
+            <p
+              className="hero-copy anim-fadeUp delay-2 mb-10"
+              style={{
+                fontSize: "clamp(1rem, 2vw, 1.15rem)",
+                color: "rgba(255,255,255,0.7)",
+                maxWidth: 620,
+                lineHeight: 1.75,
+                fontWeight: 400,
+              }}
+            >
+              Not just a ticket-selling website. UEB is the complete event operating system —
+              create, publish, sell, approve, admit, seat, communicate, analyse and close out
+              every event from one platform built for African organisers.
             </p>
 
-            <div className="anim-fadeUp delay-3 flex flex-wrap gap-4 mb-16">
+            <div className="anim-fadeUp delay-3 flex flex-wrap justify-center gap-4 mb-14">
               <Link href="/events/create" className="btn btn-white btn-lg">
                 Create Your Event
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -219,31 +294,45 @@ export default async function HomePage() {
             </div>
 
             {/* Stats */}
-            {hasEvents && (
-              <div className="anim-fadeUp delay-4 grid grid-cols-3 gap-6 pt-10" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+            {hasEvents ? (
+              <div
+                className="hero-stats anim-fadeUp delay-4 grid grid-cols-3 gap-6 pt-10"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}
+              >
                 {[
                   { value: `${stats.events}+`, label: "Live Events" },
                   { value: `${stats.registrations.toLocaleString()}+`, label: "Registrations" },
                   { value: formatCurrency(stats.revenue), label: "Processed" },
                 ].map(s => (
-                  <div key={s.label}>
-                    <div className="text-grad-violet" style={{ fontSize: "clamp(1.8rem, 4vw, 2.75rem)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                  <div key={s.label} className="text-center">
+                    <div className="text-grad-violet" style={{ fontSize: "clamp(1.6rem, 4vw, 2.5rem)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>
                       {s.value}
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "0.35rem", fontWeight: 500 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
-            )}
-
-            {!hasEvents && (
-              <div className="anim-fadeUp delay-4 glass flex items-center gap-3 px-5 py-3.5 rounded-xl w-fit">
+            ) : (
+              <div className="anim-fadeUp delay-4 glass flex flex-wrap items-center justify-center gap-3 px-5 py-3.5 rounded-xl">
                 <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.7)" }}>No events yet?</span>
                 <form action="/api/seed" method="POST">
                   <button type="submit" className="btn btn-primary btn-sm">Load Demo Data</button>
                 </form>
               </div>
             )}
+
+            {/* Capability ticks */}
+            <div className="anim-fadeUp delay-5 flex flex-wrap justify-center gap-x-5 gap-y-2 mt-10">
+              {["Recurring events", "Time-slot bookings", "Seating", "Vendors", "Group tickets", "Invitation-only"].map(bit => (
+                <span key={bit} className="flex items-center gap-1.5" style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                    <circle cx="6.5" cy="6.5" r="6" stroke="rgba(167,139,250,0.55)" />
+                    <path d="M3.6 6.7l1.9 1.9 3.9-4" stroke="#A78BFA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {bit}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -263,42 +352,54 @@ export default async function HomePage() {
               View all →
             </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featured.map((ev, i) => (
-              <div key={ev.id} className="anim-fadeUp" style={{ animationDelay: `${i * 0.08}s` }}>
-                <EventCard event={ev} />
-              </div>
-            ))}
-          </div>
+          <FeaturedEvents events={featured} />
         </section>
       )}
 
-      {/* ─── MARKETS ──────────────────────────────────────────── */}
-      <section className="py-16" style={{ background: "#fff", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+      {/* ─── CAPABILITIES (the 25-item brief) ─────────────────── */}
+      <section className="py-24" style={{ background: "#fff", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-5 sm:px-8">
-          <div className="text-center mb-10">
-            <p className="label-caps mb-2" style={{ color: "var(--violet-mid)" }}>Who it&apos;s for</p>
-            <h2 className="heading-1" style={{ color: "var(--text-1)" }}>Built for every organiser</h2>
-            <p style={{ color: "var(--text-3)", marginTop: "0.5rem", fontSize: "0.95rem" }}>
-              From 20-person workshops to 50,000-person conventions
+          <div className="text-center mb-14">
+            <p className="label-caps mb-3" style={{ color: "var(--violet-mid)" }}>Complete lifecycle</p>
+            <h2 className="display-2" style={{ color: "var(--text-1)" }}>
+              The whole event,<br />
+              <span className="text-grad-ink">not just the tickets</span>
+            </h2>
+            <p className="mt-4" style={{ color: "var(--text-3)", maxWidth: 560, margin: "1rem auto 0", fontSize: "1rem", lineHeight: 1.7 }}>
+              Every step an organiser performs — from the first draft page to the post-event report — lives inside UEB.
             </p>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2">
-          {MARKETS.map((m, i) => (
-            <div
-              key={m.label}
-              className="anim-fadeUp col-span-1 flex flex-col items-center gap-2 p-3 rounded-xl cursor-default transition-all duration-200 group market-chip"
-              style={{ animationDelay: `${i * 0.04}s` }}
-            >
-              <span style={{ fontSize: "1.75rem" }}>{m.icon}</span>
-              <span className="text-center" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-2)", letterSpacing: "0.01em" }}>{m.label}</span>
-            </div>
-          ))}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {CAPABILITIES.map((pillar, i) => (
+              <div
+                key={pillar.title}
+                className="anim-fadeUp p-6 rounded-2xl border feature-card"
+                style={{ animationDelay: `${i * 0.08}s`, borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "#fff", border: "1px solid var(--border)" }}>
+                    {pillar.icon}
+                  </div>
+                  <h3 className="font-bold" style={{ fontSize: "0.95rem", color: "var(--text-1)", letterSpacing: "-0.01em" }}>{pillar.title}</h3>
+                </div>
+                <ul className="space-y-2.5">
+                  {pillar.items.map(item => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 3, flexShrink: 0 }}>
+                        <path d="M2 7.5l3 3 7-7.5" stroke={pillar.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span style={{ fontSize: "0.84rem", color: "var(--text-2)", lineHeight: 1.55 }}>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ─── FEATURES GRID ────────────────────────────────────── */}
+      {/* ─── FEATURE GRID ────────────────────────────────────── */}
       <section className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
         <div className="text-center mb-14">
           <p className="label-caps mb-3" style={{ color: "var(--violet-mid)" }}>The complete stack</p>
@@ -316,14 +417,14 @@ export default async function HomePage() {
               key={f.title}
               className="anim-fadeUp group p-6 rounded-2xl border transition-all duration-300 feature-card"
               style={{
-                animationDelay: `${i * 0.07}s`,
+                animationDelay: `${i * 0.06}s`,
                 borderColor: "var(--border)",
                 background: "#fff",
               }}
             >
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors duration-300 group-hover:scale-105"
-                style={{ background: "var(--violet-bg)", color: "var(--violet-mid)", transition: "all 0.3s" }}
+                className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 text-lg group-hover:scale-105"
+                style={{ background: "var(--violet-bg)", transition: "all 0.3s" }}
               >
                 {f.icon}
               </div>
@@ -333,6 +434,31 @@ export default async function HomePage() {
               <p style={{ fontSize: "0.82rem", color: "var(--text-3)", lineHeight: 1.65 }}>{f.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ─── SEGMENTS ─────────────────────────────────────────── */}
+      <section className="py-16" style={{ background: "#fff", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+        <div className="max-w-7xl mx-auto px-5 sm:px-8">
+          <div className="text-center mb-10">
+            <p className="label-caps mb-2" style={{ color: "var(--violet-mid)" }}>Who it&apos;s for</p>
+            <h2 className="heading-1" style={{ color: "var(--text-1)" }}>Built for every organiser</h2>
+            <p style={{ color: "var(--text-3)", marginTop: "0.5rem", fontSize: "0.95rem" }}>
+              From 20-person workshops to 50,000-person conventions
+            </p>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            {SEGMENTS.map((m, i) => (
+              <div
+                key={m.label}
+                className="anim-fadeUp segment-chip flex flex-col items-center justify-center gap-2 p-4 rounded-xl cursor-default border"
+                style={{ animationDelay: `${i * 0.03}s`, borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <span style={{ fontSize: "1.6rem" }}>{m.icon}</span>
+                <span className="text-center" style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-2)", letterSpacing: "0.01em" }}>{m.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -364,8 +490,49 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ─── PRICING CTA ──────────────────────────────────────── */}
+      {/* ─── ROADMAP / VISION ─────────────────────────────────── */}
       <section className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <div className="text-center mb-14">
+          <p className="label-caps mb-3" style={{ color: "var(--violet-mid)" }}>Where we&apos;re going</p>
+          <h2 className="display-2" style={{ color: "var(--text-1)" }}>
+            Built in Nigeria.<br />
+            <span className="text-grad-ink">Architected for the world.</span>
+          </h2>
+          <p className="mt-4" style={{ color: "var(--text-3)", maxWidth: 560, margin: "1rem auto 0", fontSize: "1rem", lineHeight: 1.7 }}>
+            The long-term vision: make UEB the digital infrastructure for events — starting with the organisers who need it most.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {ROADMAP.map((step, i) => (
+            <div
+              key={step.title}
+              className="anim-fadeUp relative p-7 rounded-2xl border overflow-hidden"
+              style={{
+                animationDelay: `${i * 0.1}s`,
+                borderColor: step.active ? "var(--violet-rim)" : "var(--border)",
+                background: step.active ? "linear-gradient(160deg, var(--violet-bg) 0%, #fff 70%)" : "#fff",
+                boxShadow: step.active ? "var(--shadow-md)" : "var(--shadow-sm)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <span style={{ fontSize: "1.9rem" }}>{step.icon}</span>
+                <span className="badge" style={{
+                  background: step.active ? "var(--violet-mid)" : "var(--surface-2)",
+                  color: step.active ? "#fff" : "var(--text-3)",
+                }}>
+                  {step.phase}
+                </span>
+              </div>
+              <h3 className="font-black mb-2" style={{ fontSize: "1.15rem", color: "var(--text-1)", letterSpacing: "-0.02em" }}>{step.title}</h3>
+              <p style={{ fontSize: "0.86rem", color: "var(--text-3)", lineHeight: 1.7 }}>{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── PRICING CTA ──────────────────────────────────────── */}
+      <section className="pb-24 max-w-7xl mx-auto px-5 sm:px-8">
         <div
           className="relative overflow-hidden rounded-3xl p-10 sm:p-16 text-center"
           style={{ background: "linear-gradient(135deg, var(--violet-bg) 0%, #EDE9FE 100%)", border: "1px solid var(--violet-rim)" }}

@@ -105,6 +105,11 @@ export const organisations = pgTable("organisations", {
   country: varchar("country", { length: 100 }).default("Nigeria"),
   city: varchar("city", { length: 100 }),
   ownerId: uuid("owner_id").references(() => users.id),
+  followers: integer("followers").default(0),
+  eventsHosted: integer("events_hosted").default(0),
+  totalAttendees: integer("total_attendees").default(0),
+  hostingSince: timestamp("hosting_since"),
+  isVerified: boolean("is_verified").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -112,12 +117,17 @@ export const events = pgTable("events", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: varchar("title", { length: 500 }).notNull(),
   slug: varchar("slug", { length: 500 }).notNull().unique(),
+  /** Short subtitle shown under the title on the event page and cards. */
+  tagline: varchar("tagline", { length: 300 }),
   description: text("description"),
   category: eventCategoryEnum("category").default("other"),
   type: eventTypeEnum("type").default("standard"),
+  /** Eventbrite-style format facet: how people attend. */
+  format: varchar("format", { length: 30 }).default("in_person"),
   status: eventStatusEnum("status").default("draft"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  timezone: varchar("timezone", { length: 60 }).default("Africa/Lagos"),
   venue: varchar("venue", { length: 500 }),
   city: varchar("city", { length: 255 }),
   country: varchar("country", { length: 100 }).default("Nigeria"),
@@ -125,7 +135,14 @@ export const events = pgTable("events", {
   virtualLink: text("virtual_link"),
   capacity: integer("capacity"),
   imageUrl: text("image_url"),
+  /** Extra hero images cycled behind the main one. */
+  gallery: jsonb("gallery").$type<string[]>().default([]),
   bannerColor: varchar("banner_color", { length: 50 }).default("#7C3AED"),
+  /** "Good to know" bullets, e.g. "You'll learn the pricing framework". */
+  highlights: jsonb("highlights").$type<string[]>().default([]),
+  /** FAQ accordion on the event page. */
+  faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]),
+  ageRestriction: varchar("age_restriction", { length: 50 }),
   organiserId: uuid("organiser_id").references(() => users.id),
   organisationId: uuid("organisation_id").references(() => organisations.id),
   requiresApproval: boolean("requires_approval").default(false),
@@ -136,6 +153,18 @@ export const events = pgTable("events", {
   totalRegistrations: integer("total_registrations").default(0),
   totalCheckins: integer("total_checkins").default(0),
   totalRevenue: decimal("total_revenue", { precision: 15, scale: 2 }).default("0"),
+  // Recurring events + appointment slots
+  recurrenceRule: jsonb("recurrence_rule").$type<RecurrenceRule | null>(),
+  seatSelectionEnabled: boolean("seat_selection_enabled").default(false),
+  waitlistEnabled: boolean("waitlist_enabled").default(false),
+  // Post-event activities
+  postEventMessage: text("post_event_message"),
+  surveyUrl: text("survey_url"),
+  completedAt: timestamp("completed_at"),
+  // Sales lifecycle
+  soldOut: boolean("sold_out").default(false),
+  soldOutAt: timestamp("sold_out_at"),
+  listed: boolean("listed").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -174,8 +203,29 @@ export const registrations = pgTable("registrations", {
   qrCode: text("qr_code"),
   checkedIn: boolean("checked_in").default(false),
   checkedInAt: timestamp("checked_in_at"),
+  checkedInBy: varchar("checked_in_by", { length: 255 }),
   customAnswers: jsonb("custom_answers").$type<Record<string, string>>().default({}),
   notes: text("notes"),
+  // Group tickets
+  quantity: integer("quantity").default(1),
+  groupId: uuid("group_id"),
+  isGroupLead: boolean("is_group_lead").default(true),
+  guests: jsonb("guests").$type<string[]>().default([]),
+  // Time-slot appointments
+  slotId: uuid("slot_id"),
+  slotLabel: varchar("slot_label", { length: 255 }),
+  // Seating
+  seatLabel: varchar("seat_label", { length: 100 }),
+  seatId: uuid("seat_id"),
+  // Ticketing lifecycle
+  ticketIssuedAt: timestamp("ticket_issued_at"),
+  paymentReference: varchar("payment_reference", { length: 100 }),
+  // Order book (Eventbrite-style orders: Tickets / Donations / Add-ons tabs)
+  tab: varchar("tab", { length: 50 }).default("tickets"),
+  unitPrice: decimal("unit_price", { precision: 15, scale: 2 }).default("0"),
+  attendeeTitle: varchar("attendee_title", { length: 20 }),
+  ticketName: varchar("ticket_name", { length: 255 }),
+  checkedInGuests: integer("checked_in_guests").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -185,7 +235,11 @@ export const invitations = pgTable("invitations", {
   eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
   invitationCode: varchar("invitation_code", { length: 100 }).unique(),
+  tierId: uuid("tier_id"),
+  maxGuests: integer("max_guests").default(1),
+  notes: text("notes"),
   sentAt: timestamp("sent_at"),
   openedAt: timestamp("opened_at"),
   registeredAt: timestamp("registered_at"),
@@ -203,6 +257,144 @@ export const discountCodes = pgTable("discount_codes", {
   usageCount: integer("usage_count").default(0),
   expiryDate: timestamp("expiry_date"),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Recurring events ─────────────────────────────────────────
+export const eventOccurrences = pgTable("event_occurrences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  label: varchar("label", { length: 255 }),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  capacity: integer("capacity"),
+  seatsBooked: integer("seats_booked").default(0),
+  status: varchar("status", { length: 50 }).default("scheduled"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Appointment / time-slot events ───────────────────────────
+export const eventSlots = pgTable("event_slots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  occurrenceId: uuid("occurrence_id").references(() => eventOccurrences.id, { onDelete: "set null" }),
+  label: varchar("label", { length: 255 }),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  capacity: integer("capacity").default(1),
+  booked: integer("booked").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Vendors ──────────────────────────────────────────────────
+export const vendors = pgTable("vendors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }),
+  contactName: varchar("contact_name", { length: 255 }),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  stallNumber: varchar("stall_number", { length: 50 }),
+  fee: decimal("fee", { precision: 15, scale: 2 }).default("0"),
+  amountPaid: decimal("amount_paid", { precision: 15, scale: 2 }).default("0"),
+  status: varchar("status", { length: 50 }).default("invited"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Seating ──────────────────────────────────────────────────
+export const seatingSections = pgTable("seating_sections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  rows: integer("rows").default(0),
+  seatsPerRow: integer("seats_per_row").default(0),
+  tierName: varchar("tier_name", { length: 255 }),
+  color: varchar("color", { length: 50 }).default("#7C3AED"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const seats = pgTable("seats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  sectionId: uuid("section_id").references(() => seatingSections.id, { onDelete: "cascade" }).notNull(),
+  label: varchar("label", { length: 50 }).notNull(),
+  rowName: varchar("row_name", { length: 20 }),
+  seatNumber: integer("seat_number"),
+  status: varchar("status", { length: 50 }).default("available"),
+  registrationId: uuid("registration_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Payments ─────────────────────────────────────────────────
+export const payments = pgTable("payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  registrationId: uuid("registration_id").references(() => registrations.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 50 }).default("paystack"),
+  channel: varchar("channel", { length: 50 }).default("card"),
+  reference: varchar("reference", { length: 100 }).notNull().unique(),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  feeAmount: decimal("fee_amount", { precision: 15, scale: 2 }).default("0"),
+  netAmount: decimal("net_amount", { precision: 15, scale: 2 }).default("0"),
+  currency: varchar("currency", { length: 10 }).default("NGN"),
+  status: varchar("status", { length: 50 }).default("initialized"),
+  payerEmail: varchar("payer_email", { length: 255 }),
+  paidAt: timestamp("paid_at"),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Communications ───────────────────────────────────────────
+export const eventMessages = pgTable("event_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  channel: varchar("channel", { length: 50 }).default("email"),
+  audience: varchar("audience", { length: 50 }).default("all"),
+  subject: varchar("subject", { length: 500 }),
+  body: text("body").notNull(),
+  recipientCount: integer("recipient_count").default(0),
+  status: varchar("status", { length: 50 }).default("sent"),
+  senderName: varchar("sender_name", { length: 255 }),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Check-in audit trail ─────────────────────────────────────
+export const checkinLogs = pgTable("checkin_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+  registrationId: uuid("registration_id").references(() => registrations.id, { onDelete: "set null" }),
+  ticketNumber: varchar("ticket_number", { length: 100 }),
+  result: varchar("result", { length: 50 }).notNull(),
+  method: varchar("method", { length: 50 }).default("scan"),
+  staffName: varchar("staff_name", { length: 255 }),
+  device: varchar("device", { length: 255 }),
+  scannedAt: timestamp("scanned_at").defaultNow().notNull(),
+});
+
+// ─── Post-event feedback & surveys ────────────────────────────
+export const eventFeedback = pgTable("event_feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  registrationId: uuid("registration_id").references(() => registrations.id, { onDelete: "set null" }),
+  attendeeName: varchar("attendee_name", { length: 255 }),
+  rating: integer("rating"),
+  comment: text("comment"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+});
+
+// ─── Waitlist ─────────────────────────────────────────────────
+export const waitlistEntries = pgTable("waitlist_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  ticketTierId: uuid("ticket_tier_id").references(() => ticketTiers.id, { onDelete: "set null" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  status: varchar("status", { length: 50 }).default("waiting"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -224,6 +416,32 @@ export type CustomQuestion = {
   required: boolean;
   options?: string[];
 };
+
+export type RecurrenceRule = {
+  frequency: "daily" | "weekly" | "biweekly" | "monthly";
+  interval?: number;
+  /** total number of occurrences to generate (including the first) */
+  count?: number;
+  /** ISO date string — stop generating after this date */
+  until?: string | null;
+  /** 0 = Sunday … 6 = Saturday, for weekly patterns */
+  weekdays?: number[];
+  /** HH:mm local time for each occurrence */
+  time?: string;
+  durationMinutes?: number;
+};
+
+export type EventMessageChannel = "email" | "sms" | "whatsapp" | "in_app";export type MessageAudience =
+  | "all"
+  | "approved"
+  | "pending"
+  | "on_hold"
+  | "rejected"
+  | "checked_in"
+  | "not_checked_in"
+  | "unpaid"
+  | "vendors"
+  | "waitlist";
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({

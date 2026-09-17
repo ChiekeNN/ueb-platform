@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { events, ticketTiers, registrations, users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import {
+  events,
+  ticketTiers,
+  registrations,
+  users,
+  eventSlots,
+  eventOccurrences,
+  seatingSections,
+  seats,
+  vendors,
+  eventMessages,
+  eventFeedback,
+  payments,
+  waitlistEntries,
+} from "@/db/schema";
+import { asc, eq, sql } from "drizzle-orm";
 
 export async function GET(
   _req: NextRequest,
@@ -30,11 +44,75 @@ export async function GET(
       approved: regs.filter(r => r.status === "approved").length,
       pending: regs.filter(r => r.status === "pending").length,
       rejected: regs.filter(r => r.status === "rejected").length,
+      onHold: regs.filter(r => r.status === "on_hold").length,
       checkedIn: regs.filter(r => r.checkedIn).length,
+      noShows: regs.filter(r => r.status === "approved" && !r.checkedIn).length,
+      unpaid: regs.filter(r => r.paymentStatus !== "paid").length,
       totalRevenue: regs.filter(r => r.paymentStatus === "paid").reduce((sum, r) => sum + parseFloat(r.amountPaid ?? "0"), 0),
+      attendanceRate: regs.length ? Math.round((regs.filter(r => r.checkedIn).length / regs.length) * 100) : 0,
     };
 
-    return NextResponse.json({ event, tiers, registrations: regs, organiser, stats });
+    // ── Recurring schedule, appointment slots, seating, vendors, comms ──
+    const [slots, occurrences, sections, seatRows, vendorRows, messageRows, feedbackRows, paymentRows, waitlist] = await Promise.all([
+      db.select().from(eventSlots).where(eq(eventSlots.eventId, event.id)).orderBy(asc(eventSlots.startDate)),
+      db.select().from(eventOccurrences).where(eq(eventOccurrences.eventId, event.id)).orderBy(asc(eventOccurrences.startDate)),
+      db.select().from(seatingSections).where(eq(seatingSections.eventId, event.id)),
+      db.select().from(seats).where(eq(seats.eventId, event.id)),
+      db.select().from(vendors).where(eq(vendors.eventId, event.id)),
+      db.select().from(eventMessages).where(eq(eventMessages.eventId, event.id)),
+      db.select().from(eventFeedback).where(eq(eventFeedback.eventId, event.id)),
+      db.select().from(payments).where(eq(payments.eventId, event.id)),
+      db.select().from(waitlistEntries).where(eq(waitlistEntries.eventId, event.id)),
+    ]);
+
+    const bookedBySlot = new Map<string, number>();
+    regs.forEach(r => {
+      if (r.slotId) bookedBySlot.set(r.slotId, (bookedBySlot.get(r.slotId) ?? 0) + 1);
+    });
+
+    const workspace = {
+      slots: slots.map(s => ({
+        id: s.id,
+        label: s.label,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        capacity: s.capacity,
+        booked: Math.max(s.booked ?? 0, bookedBySlot.get(s.id) ?? 0),
+        remaining: s.capacity ? Math.max(s.capacity - (bookedBySlot.get(s.id) ?? 0), 0) : null,
+        isActive: s.isActive,
+      })),
+      occurrences,
+      seating: {
+        enabled: event.seatSelectionEnabled,
+        sections: sections.map(sec => ({
+          ...sec,
+          seats: seatRows.filter(st => st.sectionId === sec.id),
+        })),
+        summary: {
+          totalSeats: seatRows.length,
+          assigned: seatRows.filter(st => st.status === "assigned").length,
+          available: seatRows.filter(st => st.status === "available").length,
+        },
+      },
+      vendors: vendorRows,
+      messages: messageRows,
+      feedback: {
+        responses: feedbackRows.length,
+        averageRating: feedbackRows.filter(f => f.rating).length
+          ? Math.round((feedbackRows.reduce((s, f) => s + (f.rating ?? 0), 0) / feedbackRows.filter(f => f.rating).length) * 10) / 10
+          : 0,
+      },
+      payments: {
+        transactions: paymentRows.length,
+        settled: paymentRows.filter(p => p.status === "successful").length,
+        pending: paymentRows.filter(p => p.status === "initialized").length,
+        refunded: paymentRows.filter(p => p.status === "refunded").length,
+      },
+      waitlist: { count: waitlist.length, entries: waitlist },
+      attendeesBySlot: Object.fromEntries(bookedBySlot),
+    };
+
+    return NextResponse.json({ event, tiers, registrations: regs, organiser, stats, workspace });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch event" }, { status: 500 });
@@ -54,7 +132,26 @@ export async function PATCH(
 
     const [updated] = await db.update(events)
       .set({
-        ...body,
+        ...(body.title ? { title: body.title } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.category ? { category: body.category } : {}),
+        ...(body.type ? { type: body.type } : {}),
+        ...(body.status ? { status: body.status } : {}),
+        ...(body.venue !== undefined ? { venue: body.venue } : {}),
+        ...(body.city !== undefined ? { city: body.city } : {}),
+        ...(body.address !== undefined ? { address: body.address } : {}),
+        ...(body.bannerColor ? { bannerColor: body.bannerColor } : {}),
+        ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
+        ...(body.capacity !== undefined ? { capacity: body.capacity ? parseInt(String(body.capacity), 10) : null } : {}),
+        ...(body.requiresApproval !== undefined ? { requiresApproval: !!body.requiresApproval } : {}),
+        ...(body.waitlistEnabled !== undefined ? { waitlistEnabled: !!body.waitlistEnabled } : {}),
+        ...(body.seatSelectionEnabled !== undefined ? { seatSelectionEnabled: !!body.seatSelectionEnabled } : {}),
+        ...(body.feeAbsorbedByOrganiser !== undefined ? { feeAbsorbedByOrganiser: !!body.feeAbsorbedByOrganiser } : {}),
+        ...(body.refundPolicy !== undefined ? { refundPolicy: body.refundPolicy } : {}),
+        ...(body.surveyUrl !== undefined ? { surveyUrl: body.surveyUrl } : {}),
+        ...(body.postEventMessage !== undefined ? { postEventMessage: body.postEventMessage } : {}),
+        ...(body.recurrenceRule !== undefined ? { recurrenceRule: body.recurrenceRule } : {}),
+        ...(body.customConfirmationMessage !== undefined ? { customConfirmationMessage: body.customConfirmationMessage } : {}),
         startDate: body.startDate ? new Date(body.startDate) : event.startDate,
         endDate: body.endDate ? new Date(body.endDate) : event.endDate,
         updatedAt: new Date(),
@@ -62,7 +159,7 @@ export async function PATCH(
       .where(eq(events.id, event.id))
       .returning();
 
-    return NextResponse.json({ event: updated });
+    return NextResponse.json({ event: updated, success: true });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
