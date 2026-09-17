@@ -50,6 +50,8 @@ export default function CreateEventPage() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [poster, setPoster] = useState<{ url: string; name: string } | null>(null);
+  const [posterError, setPosterError] = useState("");
 
   const [form, setForm] = useState({
     title: "", description: "", category: "conference", type: "standard",
@@ -82,6 +84,44 @@ export default function CreateEventPage() {
   const updTier = (i: number, f: string, v: string | boolean) =>
     setTiers(ts => ts.map((t, idx) => idx === i ? { ...t, [f]: v } : t));
 
+  const uploadPoster = (file: File | undefined) => {
+    if (!file) return;
+    setPosterError("");
+    if (!file.type.startsWith("image/")) {
+      setPosterError("Please choose an image file (JPG, PNG or WebP).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPosterError("Please choose an image smaller than 5 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / image.width, maxSide / image.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) {
+          setPosterError("This image could not be prepared. Please try another file.");
+          return;
+        }
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setPoster({ url: canvas.toDataURL("image/jpeg", 0.84), name: file.name });
+      };
+      image.onerror = () => setPosterError("This image could not be read. Please try another file.");
+      image.src = String(reader.result);
+    };
+    reader.onerror = () => setPosterError("This image could not be read. Please try another file.");
+    reader.readAsDataURL(file);
+  };
+
   const submit = async () => {
     if (!form.title.trim()) { setError("Event title is required"); return; }
     setSubmitting(true); setError("");
@@ -93,6 +133,7 @@ export default function CreateEventPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form, startDate, endDate, capacity: form.capacity || null, status: "published",
+          imageUrl: poster?.url ?? null,
           ticketTiers: tiers.map(t => ({
             ...t,
             price: t.type === "free" ? "0" : t.price,
@@ -213,6 +254,41 @@ export default function CreateEventPage() {
                 <label className="block font-semibold mb-1.5" style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Description</label>
                 <textarea value={form.description} onChange={e => upd("description", e.target.value)} rows={4} placeholder="Tell attendees what to expect…" className="input" style={{ resize: "none" }} />
               </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                  <label className="block font-semibold" style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Event poster or flyer</label>
+                  <span style={{ fontSize: "0.7rem", color: "var(--text-3)" }}>Optional · JPG, PNG or WebP</span>
+                </div>
+                <label
+                  className="relative flex flex-col items-center justify-center rounded-2xl overflow-hidden cursor-pointer transition-all"
+                  style={{ minHeight: 190, border: "1.5px dashed var(--border-2)", background: "var(--surface)" }}
+                >
+                  {poster ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={poster.url} alt="Event poster preview" style={{ width: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
+                      <span className="absolute bottom-3 px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(10,10,15,0.78)", color: "#fff", fontSize: "0.72rem" }}>Choose a different poster</span>
+                    </>
+                  ) : (
+                    <div className="text-center px-6 py-8">
+                      <div style={{ fontSize: "2.2rem", marginBottom: "0.4rem" }}>🖼️</div>
+                      <p style={{ fontSize: "0.85rem", color: "var(--text-2)", fontWeight: 700 }}>Upload your event poster</p>
+                      <p style={{ marginTop: "0.25rem", fontSize: "0.74rem", color: "var(--text-3)" }}>Use the artwork attendees should see on your event card.</p>
+                      <span className="btn btn-outline btn-sm mt-3">Choose image</span>
+                    </div>
+                  )}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => uploadPoster(e.target.files?.[0])} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} />
+                </label>
+                {poster && (
+                  <div className="flex items-center justify-between gap-3 mt-2">
+                    <p className="truncate" style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>{poster.name}</p>
+                    <button type="button" onClick={() => setPoster(null)} style={{ color: "var(--red)", fontSize: "0.72rem", fontWeight: 700 }}>Remove</button>
+                  </div>
+                )}
+                {posterError && <p className="mt-2" style={{ color: "var(--red)", fontSize: "0.75rem" }}>{posterError}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold mb-1.5" style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Category</label>
