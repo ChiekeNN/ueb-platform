@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+
+type Session = { role?: string; email?: string };
 
 const NAV_LINKS = [
   { href: "/",         label: "Home" },
@@ -14,7 +16,9 @@ const NAV_LINKS = [
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const path = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -22,7 +26,32 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    const syncSession = () => {
+      try {
+        const raw = window.localStorage.getItem("ueb.session");
+        setSession(raw ? JSON.parse(raw) as Session : null);
+      } catch {
+        setSession(null);
+      }
+    };
+    syncSession();
+    window.addEventListener("storage", syncSession);
+    window.addEventListener("ueb:session-changed", syncSession);
+    return () => {
+      window.removeEventListener("storage", syncSession);
+      window.removeEventListener("ueb:session-changed", syncSession);
+    };
+  }, []);
+
   useEffect(() => { setOpen(false); }, [path]);
+
+  const logout = () => {
+    window.localStorage.removeItem("ueb.session");
+    window.dispatchEvent(new Event("ueb:session-changed"));
+    setSession(null);
+    router.push("/login");
+  };
 
   const isHome = path === "/";
 
@@ -116,17 +145,33 @@ export default function Navbar() {
 
           {/* CTA */}
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden sm:inline-flex btn btn-sm"
-              style={{
-                background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
-                color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
-                border: !scrolled && isHome ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--violet-rim)",
-              }}
-            >
-              Sign in
-            </Link>
+            {session ? (
+              <button
+                type="button"
+                onClick={logout}
+                className="hidden sm:inline-flex btn btn-sm"
+                style={{
+                  background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
+                  color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
+                  border: !scrolled && isHome ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--violet-rim)",
+                }}
+                title={session.email ? `Signed in as ${session.email}` : "Sign out"}
+              >
+                Sign out
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden sm:inline-flex btn btn-sm"
+                style={{
+                  background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
+                  color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
+                  border: !scrolled && isHome ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--violet-rim)",
+                }}
+              >
+                Sign in
+              </Link>
+            )}
             <Link
               href="/events/create"
               className="hidden sm:flex btn btn-primary"
@@ -183,9 +228,15 @@ export default function Navbar() {
               ))}
             </div>
             <div className="p-4 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
-              <Link href="/login" className="btn btn-outline w-full justify-center">
-                Sign in
-              </Link>
+              {session ? (
+                <button type="button" onClick={logout} className="btn btn-outline w-full justify-center">
+                  Sign out
+                </button>
+              ) : (
+                <Link href="/login" className="btn btn-outline w-full justify-center">
+                  Sign in
+                </Link>
+              )}
               <Link href="/events/create" className="btn btn-primary w-full justify-center">
                 + Create Event
               </Link>
