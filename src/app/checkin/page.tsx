@@ -6,12 +6,14 @@ type Result = {
   success: boolean; status?: string; message: string;
   attendeeName?: string; attendeeEmail?: string; ticketType?: string;
   ticketNumber?: string; checkedInAt?: string;
+  seatLabel?: string | null; slotLabel?: string | null; checkedInCount?: number;
 };
 
 const RESULT_META: Record<string, { bg: string; border: string; icon: string; heading: string }> = {
   VALID:        { bg:"#ECFDF5", border:"#6EE7B7", icon:"✅", heading:"VALID — Entry Allowed" },
   ALREADY_USED: { bg:"#FFFBEB", border:"#FCD34D", icon:"⚠️", heading:"ALREADY SCANNED" },
   PENDING:      { bg:"#EFF6FF", border:"#93C5FD", icon:"⏳", heading:"PENDING APPROVAL" },
+  UNPAID:       { bg:"#FFF7ED", border:"#FDBA74", icon:"💳", heading:"PAYMENT OUTSTANDING" },
   INVALID:      { bg:"#FEF2F2", border:"#FCA5A5", icon:"❌", heading:"INVALID — Entry Denied" },
 };
 
@@ -145,6 +147,9 @@ export default function CheckInPage() {
                       result.attendeeEmail && { l:"Email", v:result.attendeeEmail },
                       result.ticketType && { l:"Ticket Type", v:result.ticketType },
                       result.ticketNumber && { l:"Ticket Ref", v:result.ticketNumber },
+                      result.seatLabel && { l:"Seat", v:result.seatLabel },
+                      result.slotLabel && { l:"Time Slot", v:result.slotLabel },
+                      typeof result.checkedInCount === "number" && { l:"Admitted", v:`${result.checkedInCount} so far` },
                     ].filter(Boolean).map((row,i) => row && (
                       <div key={i} className="flex items-center gap-2">
                         <span style={{ fontSize:"0.72rem", fontWeight:700, color:"var(--text-3)", minWidth:80 }}>{row.l}</span>
@@ -210,6 +215,7 @@ export default function CheckInPage() {
               { k:"VALID", bg:"#D1FAE5", c:"#065F46", desc:"Allow entry" },
               { k:"ALREADY USED", bg:"#FEF3C7", c:"#92400E", desc:"Already scanned" },
               { k:"INVALID", bg:"#FEE2E2", c:"#991B1B", desc:"Deny entry" },
+              { k:"UNPAID", bg:"#FFEDD5", c:"#9A3412", desc:"Send to payments" },
             ].map(s=>(
               <div key={s.k} className="rounded-xl p-3 text-center" style={{ background:s.bg }}>
                 <p className="font-black text-xs mb-1" style={{ color:s.c }}>{s.k}</p>

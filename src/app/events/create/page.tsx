@@ -14,6 +14,22 @@ const defaultTier: TicketTier = {
   description: "", groupSize: "1", isInvitationOnly: false, accessCode: "",
 };
 
+/** Inclusive list of ISO dates between two inputs (used to generate time-slot windows). */
+function dateRange(start: string, end: string): string[] {
+  if (!start) return [];
+  if (!end || end <= start) return [start];
+  const out: string[] = [];
+  const cursor = new Date(start);
+  const last = new Date(end);
+  let guard = 0;
+  while (cursor <= last && guard < 60) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+    guard++;
+  }
+  return out;
+}
+
 const STEPS = [
   { n: 1, label: "Details", icon: "📋" },
   { n: 2, label: "Tickets", icon: "🎫" },
@@ -41,7 +57,24 @@ export default function CreateEventPage() {
     venue: "", address: "", city: "", country: "Nigeria", capacity: "",
     bannerColor: "#6D28D9", requiresApproval: false, refundPolicy: "",
     customConfirmationMessage: "", feeAbsorbedByOrganiser: false,
+    waitlistEnabled: false, seatSelectionEnabled: false, surveyUrl: "", postEventMessage: "",
   });
+
+  /* Recurring series */
+  const [recurrence, setRecurrence] = useState({
+    frequency: "weekly" as "daily" | "weekly" | "biweekly" | "monthly",
+    interval: "1", count: "8", until: "", time: "09:00", durationMinutes: "120",
+    weekdays: [] as number[],
+  });
+
+  /* Appointment / time-slot windows */
+  const [slotCfg, setSlotCfg] = useState({
+    date: "", endDate: "", startTime: "09:00", endTime: "17:00", durationMinutes: "30", capacity: "1",
+  });
+
+  /* Seating plan */
+  const [seating, setSeating] = useState({ name: "Main Hall", rows: "", seatsPerRow: "", tierName: "" });
+  const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const [tiers, setTiers] = useState<TicketTier[]>([{ ...defaultTier }]);
 
@@ -66,6 +99,32 @@ export default function CreateEventPage() {
             quantity: t.quantity || null,
             groupSize: parseInt(t.groupSize) || 1,
           })),
+          // Recurring series configuration (expanded server-side into dated sessions)
+          recurrenceRule: form.type === "recurring"
+            ? {
+                frequency: recurrence.frequency,
+                interval: parseInt(recurrence.interval) || 1,
+                count: parseInt(recurrence.count) || 1,
+                until: recurrence.until || null,
+                time: recurrence.time,
+                durationMinutes: parseInt(recurrence.durationMinutes) || 120,
+                weekdays: recurrence.weekdays.length ? recurrence.weekdays : undefined,
+              }
+            : null,
+          // Appointment / time-slot windows
+          slots: form.type === "timeslot" && slotCfg.date
+            ? {
+                dates: dateRange(slotCfg.date, slotCfg.endDate),
+                startTime: slotCfg.startTime,
+                endTime: slotCfg.endTime,
+                durationMinutes: slotCfg.durationMinutes,
+                capacity: slotCfg.capacity,
+              }
+            : null,
+          // Seating plan
+          seating: form.seatSelectionEnabled && seating.rows && seating.seatsPerRow
+            ? [{ name: seating.name || "Main Hall", rows: seating.rows, seatsPerRow: seating.seatsPerRow, tierName: seating.tierName || null }]
+            : null,
         }),
       });
       const data = await res.json();
@@ -192,6 +251,104 @@ export default function CreateEventPage() {
                   <input type="time" value={form.endTime} onChange={e => upd("endTime", e.target.value)} className="input" />
                 </div>
               </div>
+              {/* ── Recurring series ── */}
+              {form.type === "recurring" && (
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: "var(--violet-bg)", border: "1px solid var(--violet-rim)" }}>
+                  <div>
+                    <p className="font-bold" style={{ fontSize: "0.88rem", color: "var(--violet-low)" }}>🔁 Recurring series</p>
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: "0.2rem" }}>
+                      UEB expands this rule into individual sessions guests can see on the event page.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Repeats</label>
+                      <select value={recurrence.frequency} onChange={e => setRecurrence(r => ({ ...r, frequency: e.target.value as typeof r.frequency }))} className="input" style={{ background: "#fff", cursor: "pointer" }}>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Number of sessions</label>
+                      <input type="number" value={recurrence.count} onChange={e => setRecurrence(r => ({ ...r, count: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Start time</label>
+                      <input type="time" value={recurrence.time} onChange={e => setRecurrence(r => ({ ...r, time: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Session length (minutes)</label>
+                      <input type="number" value={recurrence.durationMinutes} onChange={e => setRecurrence(r => ({ ...r, durationMinutes: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-2" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Repeat on (weekly patterns)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAY_LABELS.map((d, i) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setRecurrence(r => ({ ...r, weekdays: r.weekdays.includes(i) ? r.weekdays.filter(x => x !== i) : [...r.weekdays, i] }))}
+                          className="px-3 py-1.5 rounded-lg font-semibold transition-all"
+                          style={{
+                            fontSize: "0.76rem",
+                            background: recurrence.weekdays.includes(i) ? "var(--violet-mid)" : "#fff",
+                            color: recurrence.weekdays.includes(i) ? "#fff" : "var(--text-2)",
+                            border: "1px solid var(--violet-rim)",
+                          }}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Ends by (optional)</label>
+                    <input type="date" value={recurrence.until} onChange={e => setRecurrence(r => ({ ...r, until: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Appointment / time slots ── */}
+              {form.type === "timeslot" && (
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: "var(--violet-bg)", border: "1px solid var(--violet-rim)" }}>
+                  <div>
+                    <p className="font-bold" style={{ fontSize: "0.88rem", color: "var(--violet-low)" }}>⏰ Appointment windows</p>
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: "0.2rem" }}>
+                      Guests pick a slot when they register. Slots are generated across the dates you choose.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>From date</label>
+                      <input type="date" value={slotCfg.date} onChange={e => setSlotCfg(s => ({ ...s, date: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>To date (optional)</label>
+                      <input type="date" value={slotCfg.endDate} onChange={e => setSlotCfg(s => ({ ...s, endDate: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Day starts</label>
+                      <input type="time" value={slotCfg.startTime} onChange={e => setSlotCfg(s => ({ ...s, startTime: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Day ends</label>
+                      <input type="time" value={slotCfg.endTime} onChange={e => setSlotCfg(s => ({ ...s, endTime: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Slot length (minutes)</label>
+                      <input type="number" value={slotCfg.durationMinutes} onChange={e => setSlotCfg(s => ({ ...s, durationMinutes: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Capacity per slot</label>
+                      <input type="number" value={slotCfg.capacity} onChange={e => setSlotCfg(s => ({ ...s, capacity: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold mb-1.5" style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Venue Name</label>
                 <input value={form.venue} onChange={e => upd("venue", e.target.value)} placeholder="e.g. Eko Convention Centre" className="input" />
@@ -353,6 +510,68 @@ export default function CreateEventPage() {
                 </label>
               </div>
 
+              {/* Toggle: Waitlist */}
+              <div className="flex items-center justify-between p-5 rounded-2xl" style={{ background: "var(--surface)", border: "1.5px solid var(--border)" }}>
+                <div>
+                  <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>Waitlist When Full</p>
+                  <p style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: "0.2rem" }}>When capacity is reached, guests join a waitlist instead of being turned away</p>
+                </div>
+                <label className="toggle ml-4 shrink-0">
+                  <input type="checkbox" checked={form.waitlistEnabled} onChange={e => upd("waitlistEnabled", e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+
+              {/* Toggle: Seating */}
+              <div className="rounded-2xl p-5" style={{ background: "var(--surface)", border: "1.5px solid var(--border)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>Manage Seating</p>
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: "0.2rem" }}>Create a seating plan and auto-assign seats to approved guests</p>
+                  </div>
+                  <label className="toggle ml-4 shrink-0">
+                    <input type="checkbox" checked={form.seatSelectionEnabled} onChange={e => upd("seatSelectionEnabled", e.target.checked)} />
+                    <span className="toggle-track" />
+                  </label>
+                </div>
+                {form.seatSelectionEnabled && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Section name</label>
+                      <input value={seating.name} onChange={e => setSeating(s => ({ ...s, name: e.target.value }))} className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Rows</label>
+                      <input type="number" value={seating.rows} onChange={e => setSeating(s => ({ ...s, rows: e.target.value }))} placeholder="10" className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Seats / row</label>
+                      <input type="number" value={seating.seatsPerRow} onChange={e => setSeating(s => ({ ...s, seatsPerRow: e.target.value }))} placeholder="20" className="input" style={{ background: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Reserved for</label>
+                      <select value={seating.tierName} onChange={e => setSeating(s => ({ ...s, tierName: e.target.value }))} className="input" style={{ background: "#fff", cursor: "pointer" }}>
+                        <option value="">Any ticket</option>
+                        {tiers.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Post-event setup */}
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "var(--surface)", border: "1.5px solid var(--border)" }}>
+                <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>Post-event setup</p>
+                <div>
+                  <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Feedback survey link (optional)</label>
+                  <input value={form.surveyUrl} onChange={e => upd("surveyUrl", e.target.value)} placeholder="https://forms.example.com/ueb-feedback" className="input" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1.5" style={{ fontSize: "0.78rem", color: "var(--text-2)" }}>Post-event message (optional)</label>
+                  <textarea value={form.postEventMessage} onChange={e => upd("postEventMessage", e.target.value)} rows={2} placeholder="Shown on the event page after the event." className="input" style={{ resize: "none" }} />
+                </div>
+              </div>
+
               <div>
                 <label className="block font-semibold mb-1.5" style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Refund Policy</label>
                 <textarea value={form.refundPolicy} onChange={e => upd("refundPolicy", e.target.value)} rows={3} placeholder="e.g. Full refund available up to 7 days before the event. No refunds after that." className="input" style={{ resize: "none" }} />
@@ -371,7 +590,14 @@ export default function CreateEventPage() {
                     form.startDate && { icon: "📅", text: `${form.startDate} at ${form.startTime}` },
                     form.city && { icon: "📍", text: [form.venue, form.city].filter(Boolean).join(", ") },
                     { icon: "🎫", text: `${tiers.length} ticket type${tiers.length !== 1 ? "s" : ""}` },
+                    form.type === "recurring" && { icon: "🔁", text: `${recurrence.count} sessions · ${recurrence.frequency}` },
+                    form.type === "timeslot" && slotCfg.date && { icon: "⏰", text: `${slotCfg.durationMinutes}-minute slots per day` },
                     form.requiresApproval && { icon: "✅", text: "Requires registration approval" },
+                    form.waitlistEnabled && { icon: "🕐", text: "Waitlist when capacity is full" },
+                    form.seatSelectionEnabled && seating.rows && seating.seatsPerRow && {
+                      icon: "🪑",
+                      text: `${parseInt(seating.rows) * parseInt(seating.seatsPerRow)} seats in ${seating.name}`,
+                    },
                   ].filter(Boolean).map((row, i) => row && (
                     <div key={i} className="flex items-start gap-2" style={{ fontSize: "0.82rem", color: "var(--text-2)" }}>
                       <span>{row.icon}</span><span>{row.text}</span>

@@ -219,6 +219,7 @@ export default function DashboardPage() {
                       <p style={{ fontSize:"0.8rem", color:"var(--text-3)", marginTop:"0.2rem" }}>{sel.city} · {sel.startDate ? formatDate(sel.startDate):"TBD"}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <Link href={`/events/${sel.slug}/manage`} className="btn btn-dark btn-sm" style={{ fontSize:"0.78rem" }}>⚙ Manage</Link>
                       <Link href={`/events/${sel.slug}`} className="btn btn-outline btn-sm" style={{ fontSize:"0.78rem" }}>View Page</Link>
                       <button onClick={()=>togglePublish(sel)} className="btn btn-sm" style={{ fontSize:"0.78rem", background:sel.status==="published"?"var(--surface-2)":"var(--violet-mid)", color:sel.status==="published"?"var(--text-1)":"#fff" }}>
                         {sel.status==="published"?"Unpublish":"Publish"}
@@ -335,10 +336,11 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Quick actions */}
-                <div className="grid grid-cols-3 gap-3">
-                  <Link href={`/checkin?event=${sel.id}`} className="btn btn-primary justify-center" style={{ fontSize:"0.85rem" }}>📱 Check-In</Link>
-                  <Link href={`/events/${sel.slug}`} className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>👁 View Page</Link>
-                  <Link href="/events/create" className="btn btn-dark justify-center" style={{ fontSize:"0.85rem" }}>＋ New Event</Link>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Link href={`/events/${sel.slug}/manage`} className="btn btn-dark justify-center" style={{ fontSize:"0.85rem" }}>⚙ Manage</Link>
+                  <Link href={`/events/${sel.slug}/report`} className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>🧾 Report</Link>
+                  <Link href={`/checkin?event=${sel.id}&slug=${sel.slug}`} className="btn btn-primary justify-center" style={{ fontSize:"0.85rem" }}>📱 Check-In</Link>
+                  <Link href="/events/create" className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>＋ New Event</Link>
                 </div>
               </div>
             )}
