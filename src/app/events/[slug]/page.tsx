@@ -1,43 +1,62 @@
 "use client";
-import { useState, useEffect, use } from "react";
-import Navbar from "@/components/Navbar";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { formatDateTime, formatDate, formatTime, formatCurrency, calculateUEBFee, getStatusColor, EVENT_CATEGORIES, describeRecurrence } from "@/lib/utils";
+import Navbar from "@/components/Navbar";
+import RegistrationModal, { type RegEvent, type RegSlot, type RegTier } from "@/components/RegistrationModal";
+import { EventCover, EventRowCard, type EventCardData } from "@/components/EventCard";
+import {
+  EVENT_CATEGORIES,
+  calculateUEBFee,
+  describeRecurrence,
+  eventDateLine,
+  formatCurrency,
+  formatDate,
+  formatDuration,
+  formatLabel,
+  formatTime,
+  getStatusColor,
+  locationLine,
+  priceSummaryLabel,
+  timeUntil,
+} from "@/lib/utils";
+import { useSavedEvents } from "@/lib/useSavedEvents";
 
-type Ev = {
-  id: string; title: string; slug: string; description?: string | null;
-  category?: string | null; type?: string | null; status?: string | null;
-  startDate?: string | null; endDate?: string | null;
-  venue?: string | null; city?: string | null; country?: string | null; address?: string | null;
-  imageUrl?: string | null; bannerColor?: string | null;
-  capacity?: number | null; totalRegistrations?: number | null; totalCheckins?: number | null;
-  totalRevenue?: string | null; requiresApproval?: boolean | null;
-  refundPolicy?: string | null; customConfirmationMessage?: string | null;
-  feeAbsorbedByOrganiser?: boolean | null;
-  seatSelectionEnabled?: boolean | null; waitlistEnabled?: boolean | null;
-  postEventMessage?: string | null; surveyUrl?: string | null; completedAt?: string | null;
-  recurrenceRule?: { frequency: "daily" | "weekly" | "biweekly" | "monthly"; interval?: number; count?: number; weekdays?: number[]; time?: string } | null;
-  customQuestions?: { id: string; label: string; type: string; required: boolean; options?: string[] }[];
+type RecurrenceRuleT = {
+  frequency: "daily" | "weekly" | "biweekly" | "monthly";
+  interval?: number; count?: number; until?: string | null; weekdays?: number[]; time?: string; durationMinutes?: number;
 };
-type Tier = {
-  id: string; name: string; type: string; price: string; quantity?: number | null; quantitySold?: number | null;
-  description?: string | null; groupSize?: number | null; isInvitationOnly?: boolean | null;
+type Ev = RegEvent & {
+  description?: string | null;
+  tagline?: string | null;
+  imageUrl?: string | null;
+  gallery?: string[] | null;
+  bannerColor?: string | null;
+  address?: string | null;
+  country?: string | null;
+  status?: string | null;
+  category?: string | null;
+  highlights?: string[] | null;
+  faqs?: { question: string; answer: string }[] | null;
+  refundPolicy?: string | null;
+  ageRestriction?: string | null;
+  recurrenceRule?: RecurrenceRuleT | null;
+  postEventMessage?: string | null;
+  completedAt?: string | null;
+  requiresApproval?: boolean | null;
+  virtualLink?: string | null;
 };
-type Org = { name: string; email: string; organisation?: string | null };
-type Stats = { totalRegistrations: number; approved: number; pending: number; checkedIn: number; totalRevenue: number };
-type Slot = { id: string; label?: string | null; startDate: string; endDate?: string | null; capacity?: number | null; booked?: number; remaining?: number | null; isActive?: boolean | null };
-type Occurrence = { id: string; label?: string | null; startDate: string; endDate?: string | null };
-type Workspace = {
-  slots: Slot[];
-  occurrences: Occurrence[];
-  seating: { enabled: boolean; summary: { totalSeats: number; assigned: number; available: number } };
-  vendors: { id: string; name: string; category?: string | null }[];
-  feedback: { responses: number; averageRating: number };
-};
-type Success = {
-  ticketNumber?: string | null; qrCode?: string | null; requiresApproval: boolean;
-  checkoutUrl?: string | null; total?: number; quantity?: number; slotLabel?: string | null;
-  waitlisted?: boolean; message?: string;
+type Detail = {
+  event: Ev;
+  tiers: RegTier[];
+  stats: { totalRegistrations: number; approved: number; pending: number; checkedIn: number; totalRevenue: number };
+  organiser: { name: string; email: string; organisation?: string | null } | null;
+  workspace?: {
+    slots: RegSlot[];
+    occurrences: { id: string; label?: string | null; startDate: string; endDate?: string | null }[];
+    seating: { enabled: boolean; summary: { totalSeats: number; assigned: number; available: number } };
+    vendors: { id: string; name: string; category?: string | null }[];
+    feedback: { responses: number; averageRating: number };
+  };
 };
 
 const CAT_ICONS: Record<string, string> = {
@@ -48,287 +67,353 @@ const CAT_ICONS: Record<string, string> = {
 
 export default function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const [ev, setEv] = useState<Ev | null>(null);
-  const [tiers, setTiers] = useState<Tier[]>([]);
-  const [org, setOrg] = useState<Org | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [related, setRelated] = useState<EventCardData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [selTier, setSelTier] = useState<Tier | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [slotId, setSlotId] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [success, setSuccess] = useState<Success | null>(null);
-  const [regErr, setRegErr] = useState("");
-  const [feedback, setFeedback] = useState({ rating: 5, comment: "", ticketNumber: "", sent: false });
-  const [form, setForm] = useState({
-    attendeeName: "", attendeeEmail: "", attendeePhone: "", organisation: "", jobTitle: "",
-    customAnswers: {} as Record<string, string>,
-  });
-  const [guestNames, setGuestNames] = useState<string[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerTier, setRegisterTier] = useState<string | null>(null);
+  const [registerQty, setRegisterQty] = useState(1);
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [showBar, setShowBar] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState({ rating: 5, comment: "", ticketNumber: "", sent: false, busy: false });
+  const { isSaved, toggle } = useSavedEvents();
 
-  useEffect(() => {
-    fetch(`/api/events/${slug}`, { cache: "no-store" })
-      .then(r => r.json())
-      .then(d => {
-        setEv(d.event); setTiers(d.tiers ?? []); setOrg(d.organiser); setStats(d.stats); setWorkspace(d.workspace ?? null);
-        if (d.tiers?.length > 0) setSelTier(d.tiers[0]);
-      })
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/events/${slug}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Event not found");
+      setDetail(json);
+      // "More events you might like" — same category first, then newest
+      const r = await fetch(`/api/events?status=published&tiers=1&category=${json.event.category ?? "all"}&limit=6`);
+      const rd = await r.json();
+      setRelated((rd.events ?? []).filter((e: EventCardData) => e.slug !== slug).slice(0, 4));
+    } catch {
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
   }, [slug]);
 
-  const register = async () => {
-    if (!ev || !form.attendeeName || !form.attendeeEmail) { setRegErr("Name and email are required."); return; }
-    if (openSlots.length > 0 && !slotId) { setRegErr("Please choose a time slot."); return; }
-    setBusy(true); setRegErr("");
+  useEffect(() => { load(); }, [load]);
+
+  // Floating action bar (Eventbrite pins this once the hero scrolls away)
+  useEffect(() => {
+    const onScroll = () => setShowBar(window.scrollY > 420);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const share = async () => {
+    const url = `${window.location.origin}/events/${slug}`;
     try {
-      const res = await fetch("/api/registrations", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: ev.id, ticketTierId: selTier?.id, ...form,
-          quantity, guests: guestNames.filter(Boolean),
-          slotId: slotId || undefined,
-          invitationCode: inviteCode || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed");
-
-      if (data.waitlisted) {
-        setSuccess({ waitlisted: true, message: data.message, requiresApproval: false });
-        setShowForm(false);
-        return;
-      }
-
-      const reg = data.registration;
-      setSuccess({
-        ticketNumber: reg?.ticketNumber ?? null,
-        qrCode: reg?.qrCode ?? null,
-        requiresApproval: !!data.requiresApproval,
-        checkoutUrl: data.checkoutUrl ?? null,
-        total: data.breakdown?.total ?? 0,
-        quantity,
-        slotLabel: data.slotLabel ?? null,
-      });
-      setShowForm(false);
-    } catch (e: unknown) {
-      setRegErr(e instanceof Error ? e.message : "Registration failed");
-    } finally { setBusy(false); }
+      if (navigator.share) { await navigator.share({ title: detail?.event.title ?? "Event", url }); return; }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* dismissed */ }
   };
 
-  const sendFeedback = async () => {
-    if (!ev) return;
-    setBusy(true);
+  const submitFeedback = async () => {
+    if (!detail) return;
+    setFeedback((f) => ({ ...f, busy: true }));
     try {
-      await fetch(`/api/events/${ev.slug}/feedback`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      await fetch(`/api/events/${detail.event.slug}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating: feedback.rating, comment: feedback.comment, ticketNumber: feedback.ticketNumber || undefined }),
       });
-      setFeedback(f => ({ ...f, sent: true }));
-    } finally { setBusy(false); }
+      setFeedback((f) => ({ ...f, sent: true, busy: false }));
+      load();
+    } catch {
+      setFeedback((f) => ({ ...f, busy: false }));
+    }
   };
 
-  if (loading) return (
-    <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
-      <Navbar />
-      <div className="flex items-center justify-center" style={{ height: "80vh" }}>
-        <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 skeleton" />
-          <div className="skeleton h-4 w-40 mx-auto mb-2" />
-          <div className="skeleton h-3 w-28 mx-auto" />
+  const tiers = detail?.tiers ?? [];
+  const price = useMemo(() => priceSummaryLabel(tiers.map((t) => ({ price: t.price, type: t.type }))), [tiers]);
+  const cartTotal = useMemo(
+    () => tiers.reduce((sum, t) => sum + (qty[t.id] ?? 0) * parseFloat(String(t.price ?? 0)), 0),
+    [tiers, qty]
+  );
+  const cartCount = Object.values(qty).reduce((a, b) => a + b, 0);
+
+  const openRegister = (tierId?: string, quantity = 1) => {
+    setRegisterTier(tierId ?? null);
+    setRegisterQty(quantity);
+    setRegisterOpen(true);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-24 space-y-5">
+          <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />
+          <div className="skeleton h-8 w-2/3" />
+          <div className="skeleton h-5 w-1/3" />
+          <div className="skeleton h-40 w-full" />
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (!ev) return (
-    <div style={{ background: "var(--surface)", minHeight: "100dvh" }}><Navbar />
-      <div className="flex items-center justify-center" style={{ height: "80vh" }}>
-        <div className="text-center">
-          <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>😕</div>
-          <h2 className="heading-2 mb-2" style={{ color: "var(--text-1)" }}>Event not found</h2>
-          <Link href="/events" className="btn btn-primary mt-4">← Browse Events</Link>
+  if (!detail) {
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="flex items-center justify-center" style={{ height: "80vh" }}>
+          <div className="text-center">
+            <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>😕</div>
+            <h2 className="heading-2 mb-2" style={{ color: "var(--text-1)" }}>Event not found</h2>
+            <Link href="/events" className="btn btn-primary mt-4">← Browse Events</Link>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  const catLabel = EVENT_CATEGORIES.find(c => c.value === ev.category)?.label ?? ev.category;
-  const catIcon = CAT_ICONS[ev.category ?? "other"] ?? "🎪";
-  const hasFree = tiers.some(t => parseFloat(t.price ?? "0") === 0);
-  const pct = ev.capacity && ev.totalRegistrations ? Math.min(100, Math.round((ev.totalRegistrations / ev.capacity) * 100)) : 0;
-  const openSlots = (workspace?.slots ?? []).filter(s => s.isActive !== false && (s.remaining === null || s.remaining === undefined || s.remaining > 0));
-  const isPast = ev.endDate ? new Date(ev.endDate) < new Date() : false;
-  const price = parseFloat(selTier?.price ?? "0");
-  const fee = price > 0 ? calculateUEBFee(price) * quantity : 0;
-  const total = ev.feeAbsorbedByOrganiser ? price * quantity : price * quantity + fee;
+  const { event, stats, organiser, workspace } = detail;
+  const catLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label ?? event.category;
+  const catIcon = CAT_ICONS[event.category ?? "other"] ?? "🎪";
+  const saved = isSaved(slug);
+  const soldOut = !!event.soldOut || (!!event.capacity && (event.totalRegistrations ?? 0) >= event.capacity);
+  const isPast = event.endDate ? new Date(event.endDate) < new Date() : false;
+  const sessionCount = workspace?.occurrences.length ?? 0;
+  const openSlots = (workspace?.slots ?? []).filter((s) => s.isActive !== false);
+  const coverEvent: EventCardData = {
+    id: event.id, title: event.title, slug, imageUrl: event.imageUrl, bannerColor: event.bannerColor,
+    category: event.category, soldOut: event.soldOut, capacity: event.capacity, totalRegistrations: event.totalRegistrations,
+  };
 
   return (
-    <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+    <div style={{ background: "#fff", minHeight: "100dvh" }}>
       <Navbar />
 
-      {/* ── HERO BANNER ── */}
-      <div
-        className="relative overflow-hidden"
-        style={{
-          height: "clamp(260px, 35vh, 400px)",
-          background: ev.imageUrl
-            ? `url(${ev.imageUrl}) center/cover no-repeat`
-            : `linear-gradient(145deg, ${ev.bannerColor ?? "#6D28D9"}, ${ev.bannerColor ?? "#4C1D95"}88)`,
-        }}
-      >
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.65) 100%)" }} />
+      {/* ── Floating action bar ── */}
+      {showBar && (
+        <div
+          className="fixed left-0 right-0 z-40 anim-fadeIn"
+          style={{ top: 64, background: "rgba(255,255,255,0.98)", backdropFilter: "blur(18px)", borderBottom: "1px solid var(--border)", boxShadow: "0 2px 18px rgba(10,10,15,0.07)" }}
+        >
+          <div className="max-w-6xl mx-auto px-5 sm:px-8 py-2.5 flex items-center gap-4">
+            <div className="hidden sm:block shrink-0" style={{ width: 52 }}>
+              <EventCover event={coverEvent} height={38} rounded="8px" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-0.01em" }}>
+                {event.title}
+              </p>
+              <p className="truncate" style={{ fontSize: "0.74rem", color: "var(--text-3)" }}>
+                {formatDate(event.startDate)} · {locationLine(event.city, event.venue, event.format)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => toggle(slug)} aria-label="Save" className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ border: "1px solid var(--border)" }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill={saved ? "#DC2626" : "none"} stroke={saved ? "#DC2626" : "#3D3D5C"} strokeWidth="1.6">
+                  <path d="M8 14s-5.5-3.4-5.5-7A3.2 3.2 0 0 1 8 4.6 3.2 3.2 0 0 1 13.5 7c0 3.6-5.5 7-5.5 7z" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button onClick={share} aria-label="Share" className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ border: "1px solid var(--border)" }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#3D3D5C" strokeWidth="1.5">
+                  <path d="M8 10.5V2m0 0L5 5m3-3l3 3M3 9.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => openRegister()} disabled={soldOut && !event.waitlistEnabled} style={{ padding: "0.55rem 1.2rem" }}>
+                {soldOut ? (event.waitlistEnabled ? "Join waitlist" : "Sold out") : "Get tickets"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        <div className="absolute top-20 left-6">
-          <Link href="/events" className="flex items-center gap-2 glass px-3 py-1.5 rounded-full text-white text-sm font-medium">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            All Events
+      {/* ── Hero ── */}
+      <div className="relative">
+        <EventCover event={coverEvent} height="clamp(260px, 44vh, 460px)" rounded="0" />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.35) 100%)" }} />
+
+        <div className="absolute top-20 left-5 sm:left-8">
+          <Link href="/events" className="glass flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-sm font-semibold">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            All events
           </Link>
         </div>
 
-        <div className="absolute bottom-8 left-6 right-6">
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <span className="badge glass text-white/90 border-white/20" style={{ background: "rgba(0,0,0,0.3)" }}>
-              {catIcon} {catLabel}
+        <div className="absolute top-20 right-5 sm:right-8 flex items-center gap-2">
+          <button onClick={share} className="glass px-3 py-1.5 rounded-full text-white text-sm font-semibold flex items-center gap-1.5">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M8 10.5V2m0 0L5 5m3-3l3 3M3 9.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Share
+          </button>
+          <button onClick={() => toggle(slug)} aria-label="Save event" className="glass w-9 h-9 rounded-full flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill={saved ? "#F87171" : "none"} stroke={saved ? "#F87171" : "#fff"} strokeWidth="1.7">
+              <path d="M8 14s-5.5-3.4-5.5-7A3.2 3.2 0 0 1 8 4.6 3.2 3.2 0 0 1 13.5 7c0 3.6-5.5 7-5.5 7z" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="absolute bottom-5 left-5 right-5 sm:left-8 sm:right-8 flex flex-wrap items-center gap-2">
+          <span className="badge glass text-white" style={{ fontSize: "0.68rem" }}>{catIcon} {catLabel}</span>
+          <span className="badge glass text-white" style={{ fontSize: "0.68rem" }}>{event.format === "online" ? "💻" : "📍"} {formatLabel(event.format)}</span>
+          {event.type && event.type !== "standard" && (
+            <span className="badge glass text-white" style={{ fontSize: "0.68rem" }}>
+              {event.type === "recurring" ? "🔁 Recurring" : event.type === "timeslot" ? "⏰ Time slots" : event.type}
             </span>
-            {ev.type && ev.type !== "standard" && (
-              <span className="badge glass text-white/90" style={{ background: "rgba(0,0,0,0.3)" }}>
-                {ev.type === "recurring" ? "🔁 Recurring" : ev.type === "timeslot" ? "⏰ Time slots" : ev.type}
-              </span>
-            )}
-            {ev.status && ev.status !== "published" && (
-              <span className={`badge ${getStatusColor(ev.status)}`}>{ev.status}</span>
-            )}
-          </div>
-          <h1 className="display-2 text-white">{ev.title}</h1>
+          )}
+          {soldOut && <span className="badge badge-red" style={{ fontSize: "0.68rem" }}>Sold out</span>}
+          {!soldOut && !isPast && timeUntil(event.startDate) && (
+            <span className="badge glass text-white" style={{ fontSize: "0.68rem" }}>{timeUntil(event.startDate)}</span>
+          )}
         </div>
       </div>
 
-      {/* ── CONTENT ── */}
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* ── LEFT ── */}
-          <div className="lg:col-span-2 space-y-6">
-
-            {ev.postEventMessage && (
-              <div className="rounded-2xl p-5" style={{ background: "var(--violet-bg)", border: "1px solid var(--violet-rim)" }}>
-                <p className="font-bold mb-2" style={{ fontSize: "0.85rem", color: "var(--violet-low)" }}>💜 From the organiser</p>
-                <p style={{ fontSize: "0.88rem", color: "var(--text-2)", lineHeight: 1.7 }}>{ev.postEventMessage}</p>
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          {/* ── LEFT: content ── */}
+          <div className="lg:col-span-2">
+            {registered && (
+              <div className="mb-5 p-4 rounded-2xl flex items-center gap-3" style={{ background: "#D1FAE5", border: "1px solid #A7F3D0" }}>
+                <span style={{ fontSize: "1.3rem" }}>🎉</span>
+                <div>
+                  <p style={{ fontSize: "0.86rem", fontWeight: 700, color: "#065F46" }}>You&apos;re on the list</p>
+                  <p style={{ fontSize: "0.78rem", color: "#047857" }}>Your digital ticket with the QR code is ready.</p>
+                </div>
               </div>
             )}
 
-            {/* Stats row */}
-            {stats && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { v: stats.totalRegistrations, l: "Registered", c: "var(--violet-mid)", icon: "👥" },
-                  { v: stats.approved, l: "Approved", c: "var(--green)", icon: "✅" },
-                  { v: stats.checkedIn, l: "Checked In", c: "#0891B2", icon: "📱" },
-                  { v: formatCurrency(stats.totalRevenue), l: "Revenue", c: "#B45309", icon: "💰" },
-                ].map(s => (
-                  <div key={s.l} className="card p-4 text-center">
-                    <div style={{ fontSize: "1.4rem", marginBottom: "0.25rem" }}>{s.icon}</div>
-                    <div className="font-black" style={{ fontSize: "1.1rem", color: s.c, letterSpacing: "-0.02em" }}>{s.v}</div>
-                    <div style={{ fontSize: "0.72rem", color: "var(--text-3)", fontWeight: 600 }}>{s.l}</div>
-                  </div>
-                ))}
+            <h1 style={{ fontSize: "clamp(1.6rem, 3.6vw, 2.3rem)", fontWeight: 900, letterSpacing: "-0.035em", color: "var(--text-1)", lineHeight: 1.15 }}>
+              {event.title}
+            </h1>
+            {event.tagline && (
+              <p style={{ fontSize: "1rem", color: "var(--text-2)", marginTop: "0.5rem", lineHeight: 1.65 }}>{event.tagline}</p>
+            )}
+
+            {/* Organiser row */}
+            <div className="flex items-center gap-3 mt-5">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-white shrink-0"
+                style={{ background: "linear-gradient(135deg, #7C3AED, #4C1D95)", fontSize: "1rem" }}>
+                {(organiser?.organisation ?? organiser?.name ?? "U").charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p style={{ fontSize: "0.78rem", color: "var(--text-3)" }}>
+                  By <strong style={{ color: "var(--text-2)" }}>{organiser?.organisation ?? organiser?.name ?? "UEB organiser"}</strong>
+                </p>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+                  {stats.totalRegistrations} registered · {stats.checkedIn} admitted · {stats.approved} approved
+                </p>
+              </div>
+            </div>
+
+            {/* Date / location */}
+            <div className="mt-5 space-y-3">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--violet-bg)" }}>📅</div>
+                <div>
+                  <p style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--text-1)" }}>{eventDateLine(event.startDate, event.endDate)}</p>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>
+                    {formatDuration(event.startDate, event.endDate)}
+                    {event.recurrenceRule ? ` · ${describeRecurrence(event.recurrenceRule)}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--violet-bg)" }}>
+                  {event.format === "online" ? "💻" : "📍"}
+                </div>
+                <div>
+                  <p style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--text-1)" }}>{locationLine(event.city, event.venue, event.format)}</p>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>{[event.address, event.country].filter(Boolean).join(", ") || "Address shown on your ticket"}</p>
+                  {event.format !== "online" && (event.address || event.venue) && (
+                    <a
+                      style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--violet-mid)" }}
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.venue, event.address, event.city].filter(Boolean).join(", "))}`}
+                      target="_blank" rel="noopener noreferrer"
+                    >
+                      Show map →
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Good to know */}
+            <div className="mt-7">
+              <h2 className="heading-2 mb-3" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Good to know</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <p className="label-caps mb-2" style={{ color: "var(--text-3)" }}>Highlights</p>
+                  <ul className="space-y-1.5">
+                    {[
+                      formatDuration(event.startDate, event.endDate),
+                      formatLabel(event.format),
+                      event.ageRestriction,
+                      ...(event.highlights ?? []),
+                    ].filter((v): v is string => !!v && v.length > 0).slice(0, 6).map((h) => (
+                      <li key={h} className="flex items-start gap-2">
+                        <span style={{ color: "var(--violet-mid)", marginTop: -1 }}>•</span>
+                        <span style={{ fontSize: "0.82rem", color: "var(--text-2)", lineHeight: 1.55 }}>{h}</span>
+                      </li>
+                    ))}
+                    {!(event.highlights ?? []).length && !formatDuration(event.startDate, event.endDate) && (
+                      <li style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Details on the event page</li>
+                    )}
+                  </ul>
+                </div>
+                <div className="p-4 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <p className="label-caps mb-2" style={{ color: "var(--text-3)" }}>Refund policy</p>
+                  <p style={{ fontSize: "0.82rem", color: "var(--text-2)", lineHeight: 1.6 }}>
+                    {event.refundPolicy ?? "No refunds — contact the organiser for exceptional cases."}
+                  </p>
+                  {event.requiresApproval && (
+                    <p style={{ fontSize: "0.78rem", color: "var(--amber)", fontWeight: 700, marginTop: "0.5rem" }}>
+                      ⏳ Registration requires organiser approval
+                    </p>
+                  )}
+                  {workspace?.seating.enabled && workspace.seating.summary.totalSeats > 0 && (
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: "0.5rem" }}>
+                      🪑 Reserved seating · {workspace.seating.summary.available} of {workspace.seating.summary.totalSeats} seats free
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Overview */}
+            {event.description && (
+              <div className="mt-8">
+                <h2 className="heading-2 mb-3" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Overview</h2>
+                <p
+                  style={{
+                    fontSize: "0.94rem", color: "var(--text-2)", lineHeight: 1.85, whiteSpace: "pre-line",
+                    ...(showAll ? {} : { display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties),
+                  }}
+                >
+                  {event.description}
+                </p>
+                <button onClick={() => setShowAll((v) => !v)} className="btn btn-outline btn-sm mt-3">
+                  {showAll ? "Show less" : "Read more"}
+                </button>
               </div>
             )}
 
-            {/* About */}
-            <div className="card p-6">
-              <h2 className="heading-2 mb-4" style={{ color: "var(--text-1)" }}>About this Event</h2>
-              {ev.description
-                ? <p style={{ color: "var(--text-2)", lineHeight: 1.8, fontSize: "0.95rem", whiteSpace: "pre-line" }}>{ev.description}</p>
-                : <p style={{ color: "var(--text-3)", fontStyle: "italic" }}>No description provided.</p>
-              }
-            </div>
-
-            {/* Event details */}
-            <div className="card p-6">
-              <h2 className="heading-2 mb-5" style={{ color: "var(--text-1)" }}>Event Details</h2>
-              <div className="space-y-4">
-                {ev.startDate && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "var(--violet-bg)" }}>📅</div>
-                    <div>
-                      <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>{formatDate(ev.startDate)} at {formatTime(ev.startDate)}</p>
-                      {ev.endDate && <p style={{ fontSize: "0.8rem", color: "var(--text-3)", marginTop: "0.15rem" }}>Ends: {formatDateTime(ev.endDate)}</p>}
-                      {ev.recurrenceRule && (
-                        <p style={{ fontSize: "0.8rem", color: "var(--violet-mid)", marginTop: "0.15rem", fontWeight: 600 }}>
-                          🔁 {describeRecurrence(ev.recurrenceRule)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {(ev.venue || ev.city) && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "var(--violet-bg)" }}>📍</div>
-                    <div>
-                      {ev.venue && <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>{ev.venue}</p>}
-                      <p style={{ fontSize: "0.8rem", color: "var(--text-3)", marginTop: "0.15rem" }}>{[ev.address, ev.city, ev.country].filter(Boolean).join(", ")}</p>
-                    </div>
-                  </div>
-                )}
-                {ev.capacity && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "var(--violet-bg)" }}>👥</div>
-                    <div className="flex-1">
-                      <p className="font-bold text-sm mb-2" style={{ color: "var(--text-1)" }}>
-                        {ev.totalRegistrations ?? 0} of {ev.capacity} spots filled {pct >= 80 && <span className="badge badge-red ml-1">Almost Full</span>}
-                      </p>
-                      <div className="progress-track">
-                        <div className="progress-fill" style={{ width: `${pct}%`, background: pct >= 80 ? "linear-gradient(90deg,#DC2626,#EF4444)" : "linear-gradient(90deg,var(--violet),var(--violet-hi))" }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {ev.requiresApproval && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "#FEF3C7" }}>✅</div>
-                    <div className="flex items-center">
-                      <p style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>Registration requires organiser approval</p>
-                    </div>
-                  </div>
-                )}
-                {workspace?.seating.enabled && workspace.seating.summary.totalSeats > 0 && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "var(--violet-bg)" }}>🪑</div>
-                    <div className="flex items-center">
-                      <p style={{ fontSize: "0.85rem", color: "var(--text-2)" }}>
-                        Reserved seating · {workspace.seating.summary.totalSeats} seats, {workspace.seating.summary.available} still free
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {org && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg" style={{ background: "var(--surface-2)" }}>🏢</div>
-                    <div>
-                      <p className="font-bold text-sm" style={{ color: "var(--text-1)" }}>{org.organisation ?? org.name}</p>
-                      <p style={{ fontSize: "0.8rem", color: "var(--text-3)", marginTop: "0.1rem" }}>{org.email}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Recurring schedule */}
-            {workspace && workspace.occurrences.length > 0 && (
-              <div className="card p-6">
-                <h2 className="heading-2 mb-2" style={{ color: "var(--text-1)" }}>Session schedule</h2>
-                <p style={{ fontSize: "0.83rem", color: "var(--text-3)", marginBottom: "1rem" }}>
-                  {workspace.occurrences.length} session(s) in this series
+            {/* Agenda: recurring sessions or appointment slots */}
+            {sessionCount > 0 && (
+              <div className="mt-8">
+                <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Agenda</h2>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
+                  {sessionCount} session{sessionCount === 1 ? "" : "s"} in this series — your ticket covers every session.
                 </p>
                 <div className="space-y-2">
-                  {workspace.occurrences.slice(0, 12).map(o => (
-                    <div key={o.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "var(--surface)" }}>
-                      <span className="font-bold" style={{ fontSize: "0.84rem", color: "var(--text-1)" }}>{o.label ?? "Session"}</span>
-                      <span style={{ fontSize: "0.78rem", color: "var(--text-3)" }}>
+                  {workspace!.occurrences.map((o) => (
+                    <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-1)" }}>{o.label ?? "Session"}</span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>
                         {formatDate(o.startDate)} · {formatTime(o.startDate)}{o.endDate ? ` – ${formatTime(o.endDate)}` : ""}
                       </span>
                     </div>
@@ -337,13 +422,45 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
               </div>
             )}
 
-            {/* Vendors / exhibitors */}
-            {workspace && workspace.vendors.length > 0 && (
-              <div className="card p-6">
-                <h2 className="heading-2 mb-4" style={{ color: "var(--text-1)" }}>Vendors &amp; exhibitors</h2>
+            {openSlots.length > 0 && (
+              <div className="mt-8">
+                <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Time slots</h2>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
+                  {openSlots.filter((s) => (s.remaining ?? 1) > 0).length} appointment{openSlots.filter((s) => (s.remaining ?? 1) > 0).length === 1 ? "" : "s"} still available — pick one when you register.
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {workspace.vendors.map(v => (
-                    <span key={v.id} className="badge badge-violet" style={{ fontSize: "0.72rem" }}>
+                  {openSlots.slice(0, 24).map((s) => {
+                    const full = (s.remaining ?? 1) <= 0;
+                    return (
+                      <button
+                        key={s.id}
+                        disabled={full}
+                        onClick={() => openRegister()}
+                        className="px-3 py-2 rounded-xl font-semibold"
+                        style={{
+                          fontSize: "0.78rem",
+                          background: full ? "var(--surface-2)" : "var(--violet-bg)",
+                          color: full ? "var(--text-3)" : "var(--violet-low)",
+                          border: `1px solid ${full ? "var(--border)" : "var(--violet-rim)"}`,
+                          textDecoration: full ? "line-through" : "none",
+                          cursor: full ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {s.label ?? `${formatDate(s.startDate)} ${formatTime(s.startDate)}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Vendors */}
+            {!!workspace?.vendors.length && (
+              <div className="mt-8">
+                <h2 className="heading-2 mb-3" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Vendors &amp; exhibitors</h2>
+                <div className="flex flex-wrap gap-2">
+                  {workspace.vendors.map((v) => (
+                    <span key={v.id} className="badge badge-violet" style={{ fontSize: "0.74rem" }}>
                       🏪 {v.name}{v.category ? ` · ${v.category}` : ""}
                     </span>
                   ))}
@@ -351,306 +468,279 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
               </div>
             )}
 
-            {/* Refund policy */}
-            {ev.refundPolicy && (
-              <div className="rounded-2xl p-5" style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>
-                <p className="font-bold mb-2" style={{ fontSize: "0.85rem", color: "#92400E" }}>↩️ Refund Policy</p>
-                <p style={{ fontSize: "0.85rem", color: "#78350F", lineHeight: 1.7 }}>{ev.refundPolicy}</p>
+            {/* FAQ */}
+            {!!(event.faqs ?? []).length && (
+              <div className="mt-8">
+                <h2 className="heading-2 mb-3" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Frequently asked questions</h2>
+                <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                  {(event.faqs ?? []).map((f, i) => (
+                    <div key={f.question} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
+                      <button
+                        className="w-full text-left flex items-center justify-between gap-3 p-4"
+                        onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                        style={{ background: openFaq === i ? "var(--surface)" : "#fff" }}
+                      >
+                        <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-1)" }}>{f.question}</span>
+                        <span style={{ color: "var(--text-3)", transform: openFaq === i ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+                      </button>
+                      {openFaq === i && (
+                        <p style={{ padding: "0 1rem 1rem", fontSize: "0.85rem", color: "var(--text-2)", lineHeight: 1.7 }}>{f.answer}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Organiser actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Link href={`/events/${ev.slug}/manage`} className="btn btn-dark justify-center">Manage Event →</Link>
-              <Link href={`/checkin?event=${ev.id}&slug=${ev.slug}`} className="btn btn-outline justify-center">📱 Check-In</Link>
-              <Link href={`/events/${ev.slug}/report`} className="btn btn-outline justify-center">🧾 Report</Link>
-            </div>
-
-            {/* Feedback */}
-            {(isPast || ev.completedAt) && (
-              <div className="card p-6">
-                <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)" }}>How was it?</h2>
-                <p style={{ fontSize: "0.83rem", color: "var(--text-3)", marginBottom: "1rem" }}>
-                  {workspace?.feedback.responses ? `${workspace.feedback.responses} attendees have rated this event ${workspace.feedback.averageRating}/5` : "Be the first to share feedback"}
+            {/* Post-event feedback */}
+            {(isPast || event.completedAt) && (
+              <div className="mt-8 p-5 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>How was it?</h2>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
+                  {workspace?.feedback.responses
+                    ? `${workspace.feedback.responses} attendees rated this event ${workspace.feedback.averageRating}/5`
+                    : "Be the first to share feedback"}
                 </p>
                 {feedback.sent ? (
-                  <div className="p-4 rounded-xl text-center" style={{ background: "#D1FAE5" }}>
-                    <p className="font-bold" style={{ fontSize: "0.88rem", color: "#065F46" }}>Thank you for your feedback 💜</p>
-                  </div>
+                  <p className="font-bold" style={{ fontSize: "0.88rem", color: "var(--green)" }}>Thank you for your feedback 💜</p>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2 mb-3">
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <button
-                          key={star}
-                          onClick={() => setFeedback(f => ({ ...f, rating: star }))}
-                          style={{ fontSize: "1.6rem", background: "none", border: "none", cursor: "pointer", opacity: star <= feedback.rating ? 1 : 0.3 }}
-                          aria-label={`${star} stars`}
-                        >★</button>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button key={star} onClick={() => setFeedback((f) => ({ ...f, rating: star }))} aria-label={`${star} stars`}
+                          style={{ fontSize: "1.6rem", background: "none", border: "none", cursor: "pointer", opacity: star <= feedback.rating ? 1 : 0.3 }}>★</button>
                       ))}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <input className="input" style={{ fontSize: "0.85rem" }} placeholder="Ticket number (optional)" value={feedback.ticketNumber} onChange={e => setFeedback(f => ({ ...f, ticketNumber: e.target.value.toUpperCase() }))} />
-                      <input className="input sm:col-span-2" style={{ fontSize: "0.85rem" }} placeholder="What worked, what could be better?" value={feedback.comment} onChange={e => setFeedback(f => ({ ...f, comment: e.target.value }))} />
+                      <input className="input" style={{ fontSize: "0.85rem" }} placeholder="Ticket number (optional)"
+                        value={feedback.ticketNumber} onChange={(e) => setFeedback((f) => ({ ...f, ticketNumber: e.target.value.toUpperCase() }))} />
+                      <input className="input sm:col-span-2" style={{ fontSize: "0.85rem" }} placeholder="What worked, what could be better?"
+                        value={feedback.comment} onChange={(e) => setFeedback((f) => ({ ...f, comment: e.target.value }))} />
                     </div>
-                    <button className="btn btn-primary btn-sm mt-3" disabled={busy} onClick={sendFeedback}>Submit feedback</button>
+                    <button className="btn btn-primary btn-sm mt-3" disabled={feedback.busy} onClick={submitFeedback}>
+                      {feedback.busy ? "Sending…" : "Submit feedback"}
+                    </button>
                   </>
                 )}
               </div>
             )}
+
+            {/* Organiser tools — kept out of the attendee path */}
+            <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--border)" }}>
+              <p className="label-caps mb-3" style={{ color: "var(--text-3)" }}>Organiser tools</p>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/events/${event.slug}/manage`} className="btn btn-outline btn-sm">⚙ Manage event</Link>
+                <Link href={`/events/${event.slug}/report`} className="btn btn-outline btn-sm">🧾 Event report</Link>
+                <Link href={`/checkin?event=${event.id}&slug=${event.slug}`} className="btn btn-outline btn-sm">📱 Check-in desk</Link>
+              </div>
+            </div>
           </div>
 
-          {/* ── SIDEBAR ── */}
-          <div className="space-y-4">
-            <div className="card p-5 sticky top-20">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="font-bold" style={{ fontSize: "1rem", color: "var(--text-1)" }}>Register</h3>
-                <span className={`badge ${getStatusColor(ev.status ?? "published")}`}>{ev.status}</span>
-              </div>
+          {/* ── RIGHT: sticky ticket rail ── */}
+          <div className="lg:col-span-1">
+            <div className="lg:sticky" style={{ top: 96 }}>
+              <div className="p-5 rounded-3xl" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className="label-caps" style={{ color: "var(--text-3)" }}>Tickets</p>
+                    <p style={{ fontSize: "1.3rem", fontWeight: 900, color: price.free ? "var(--green)" : "var(--text-1)", letterSpacing: "-0.03em" }}>
+                      {price.label}
+                    </p>
+                  </div>
+                  {event.status && <span className={`badge ${getStatusColor(event.status)}`} style={{ fontSize: "0.64rem" }}>{event.status}</span>}
+                </div>
 
-              {/* Ticket tiers */}
-              {!success && (
-                <div className="space-y-2 mb-5">
-                  {tiers.map(t => {
-                    const tierPrice = parseFloat(t.price ?? "0");
-                    const tierFee = tierPrice > 0 ? calculateUEBFee(tierPrice) : 0;
-                    const tierTotal = ev.feeAbsorbedByOrganiser ? tierPrice : tierPrice + tierFee;
-                    const full = !!(t.quantity && t.quantitySold && t.quantitySold >= t.quantity);
+                <div className="space-y-2 mb-4">
+                  {tiers.map((t) => {
+                    const tPrice = parseFloat(String(t.price ?? 0));
+                    const tFee = tPrice > 0 ? calculateUEBFee(tPrice) : 0;
+                    const full = !!(t.quantity && (t.quantitySold ?? 0) >= t.quantity);
+                    const selected = (qty[t.id] ?? 0) > 0;
                     return (
-                      <button
-                        key={t.id} onClick={() => { if (full) return; setSelTier(t); setQuantity(1); }} disabled={full}
-                        className="w-full text-left p-4 rounded-xl border-2 transition-all duration-200"
+                      <div
+                        key={t.id}
+                        className="p-3.5 rounded-xl"
                         style={{
-                          borderColor: selTier?.id === t.id ? "var(--violet-mid)" : "var(--border)",
-                          background: selTier?.id === t.id ? "var(--violet-bg)" : "#fff",
-                          opacity: full ? 0.5 : 1,
-                          cursor: full ? "not-allowed" : "pointer",
+                          border: `1.5px solid ${selected ? "var(--violet-mid)" : "var(--border)"}`,
+                          background: selected ? "var(--violet-bg)" : "#fff",
+                          opacity: full ? 0.55 : 1,
                         }}
                       >
-                        <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-bold text-sm truncate" style={{ color: "var(--text-1)" }}>{t.name}</p>
-                              {t.isInvitationOnly ? <span className="badge badge-gold" style={{ fontSize: "0.58rem" }}>invite only</span> : null}
-                              {t.groupSize && t.groupSize > 1 ? <span className="badge badge-blue" style={{ fontSize: "0.58rem" }}>group</span> : null}
+                              <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "var(--text-1)" }}>{t.name}</span>
+                              {t.isInvitationOnly ? <span className="badge badge-gold" style={{ fontSize: "0.56rem" }}>invite only</span> : null}
+                              {t.groupSize && t.groupSize > 1 ? <span className="badge badge-blue" style={{ fontSize: "0.56rem" }}>group</span> : null}
                             </div>
-                            {t.description && <p style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: "0.15rem" }}>{t.description}</p>}
-                            <div className="flex items-center gap-2 mt-1">
-                              {t.quantity && (
-                                <span style={{ fontSize: "0.7rem", color: full ? "var(--red)" : "var(--text-3)", fontWeight: 600 }}>
-                                  {full ? "Sold Out" : `${t.quantity - (t.quantitySold ?? 0)} left`}
-                                </span>
-                              )}
-                            </div>
+                            {t.quantity ? (
+                              <p style={{ fontSize: "0.7rem", color: full ? "var(--red)" : "var(--text-3)", fontWeight: 600, marginTop: "0.1rem" }}>
+                                {full ? "Sold out" : `${t.quantity - (t.quantitySold ?? 0)} left`}
+                              </p>
+                            ) : null}
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-black" style={{ fontSize: "0.95rem", color: "var(--text-1)", letterSpacing: "-0.02em" }}>
-                              {tierPrice === 0 ? "Free" : formatCurrency(tierTotal)}
+                            <p style={{ fontSize: "0.86rem", fontWeight: 800, color: "var(--text-1)" }}>
+                              {tPrice === 0 ? "Free" : formatCurrency(event.feeAbsorbedByOrganiser ? tPrice : tPrice + tFee)}
                             </p>
-                            {tierPrice > 0 && !ev.feeAbsorbedByOrganiser && (
-                              <p style={{ fontSize: "0.68rem", color: "var(--text-3)" }}>incl. ₦{tierFee.toLocaleString()} fee</p>
+                            {tPrice > 0 && !event.feeAbsorbedByOrganiser && (
+                              <p style={{ fontSize: "0.64rem", color: "var(--text-3)" }}>incl. ₦{tFee.toLocaleString()}</p>
                             )}
                           </div>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
 
-              {/* Success state */}
-              {success ? (
-                <div className="text-center anim-scaleIn">
-                  <div
-                    className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-4 text-3xl"
-                    style={{ background: success.waitlisted ? "#EFF6FF" : success.requiresApproval ? "#FEF3C7" : "#D1FAE5" }}
-                  >
-                    {success.waitlisted ? "🕐" : success.requiresApproval ? "⏳" : "🎉"}
-                  </div>
-                  <h4 className="font-black mb-1" style={{ color: success.requiresApproval ? "#92400E" : "var(--green)", fontSize: "1.1rem" }}>
-                    {success.waitlisted ? "You're on the waitlist" : success.requiresApproval ? "Registration Submitted!" : "You're Registered!"}
-                  </h4>
-                  {success.waitlisted
-                    ? <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>{success.message}</p>
-                    : success.checkoutUrl
-                      ? <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
-                          Complete payment of <strong>{formatCurrency(success.total ?? 0)}</strong> to confirm {success.quantity && success.quantity > 1 ? `${success.quantity} tickets` : "your ticket"}.
-                        </p>
-                      : <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
-                          Ticket: <strong>{success.ticketNumber}</strong>{success.slotLabel ? ` · ${success.slotLabel}` : ""}
-                        </p>
-                  }
-                  {ev.customConfirmationMessage && (
-                    <div className="rounded-xl p-3 mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                      <p style={{ fontSize: "0.78rem", color: "var(--text-2)", lineHeight: 1.6 }}>{ev.customConfirmationMessage}</p>
-                    </div>
-                  )}
-                  {success.checkoutUrl && (
-                    <Link href={success.checkoutUrl} className="btn btn-primary w-full justify-center mb-3">
-                      Pay {formatCurrency(success.total ?? 0)} now →
-                    </Link>
-                  )}
-                  {success.qrCode && (
-                    <>
-                      <div className="flex justify-center mb-3">
-                        <div className="rounded-2xl overflow-hidden p-2" style={{ background: "#fff", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={success.qrCode} alt="QR Code" style={{ width: 140, height: 140, display: "block" }} />
+                        <div className="flex items-center justify-between mt-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              className="w-7 h-7 rounded-lg font-bold"
+                              disabled={full || (qty[t.id] ?? 0) === 0}
+                              onClick={() => setQty((q) => ({ ...q, [t.id]: Math.max(0, (q[t.id] ?? 0) - 1) }))}
+                              style={{ background: "var(--surface-2)", color: "var(--text-2)", opacity: full || (qty[t.id] ?? 0) === 0 ? 0.5 : 1 }}
+                            >−</button>
+                            <span style={{ minWidth: 20, textAlign: "center", fontWeight: 800, fontSize: "0.85rem", color: "var(--text-1)" }}>{qty[t.id] ?? 0}</span>
+                            <button
+                              className="w-7 h-7 rounded-lg font-bold"
+                              disabled={full || (qty[t.id] ?? 0) >= 20}
+                              onClick={() => setQty((q) => ({ ...q, [t.id]: Math.min(20, (q[t.id] ?? 0) + 1) }))}
+                              style={{ background: "var(--surface-2)", color: "var(--text-2)", opacity: full ? 0.5 : 1 }}
+                            >+</button>
+                          </div>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            disabled={full}
+                            style={{ fontSize: "0.72rem", padding: "0.35rem 0.8rem" }}
+                            onClick={() => openRegister(t.id, Math.max(1, qty[t.id] ?? 1))}
+                          >
+                            Register
+                          </button>
                         </div>
                       </div>
-                      <p style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>Show this QR code at the venue entrance</p>
-                      <Link href={`/events/${ev.slug}/ticket/${success.ticketNumber}`} className="btn btn-outline btn-sm w-full justify-center mt-3">
-                        Open digital ticket →
-                      </Link>
-                    </>
+                    );
+                  })}
+                  {tiers.length === 0 && (
+                    <p style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Ticket types are being finalised.</p>
                   )}
                 </div>
 
-              /* Form state */
-              ) : showForm ? (
-                <div className="space-y-3 anim-fadeUp">
-                  {regErr && (
-                    <div className="p-3 rounded-xl flex items-center gap-2" style={{ background: "#FEE2E2", border: "1px solid #FECACA" }}>
-                      <span style={{ color: "var(--red)" }}>⚠</span>
-                      <p style={{ fontSize: "0.78rem", color: "#991B1B" }}>{regErr}</p>
-                    </div>
-                  )}
-
-                  {/* Slot picker */}
-                  {openSlots.length > 0 && (
-                    <div>
-                      <label className="block font-semibold mb-1" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>Choose a time slot *</label>
-                      <select className="input" style={{ fontSize: "0.85rem" }} value={slotId} onChange={e => setSlotId(e.target.value)}>
-                        <option value="">Select a time…</option>
-                        {openSlots.map(s => (
-                          <option key={s.id} value={s.id}>
-                            {formatDate(s.startDate)} · {s.label ?? formatTime(s.startDate)}{s.remaining !== null && s.remaining !== undefined ? ` (${s.remaining} left)` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {[
-                    { f: "attendeeName", ph: "Full Name *", type: "text" },
-                    { f: "attendeeEmail", ph: "Email Address *", type: "email" },
-                    { f: "attendeePhone", ph: "Phone Number", type: "tel" },
-                    { f: "organisation", ph: "Organisation", type: "text" },
-                    { f: "jobTitle", ph: "Job Title / Role", type: "text" },
-                  ].map(inp => (
-                    <input
-                      key={inp.f} type={inp.type} placeholder={inp.ph}
-                      value={form[inp.f as keyof typeof form] as string}
-                      onChange={e => setForm(x => ({ ...x, [inp.f]: e.target.value }))}
-                      className="input"
-                      style={{ fontSize: "0.85rem", padding: "0.65rem 1rem" }}
-                    />
-                  ))}
-
-                  {/* Group tickets */}
-                  <div>
-                    <label className="block font-semibold mb-1" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
-                      Number of tickets {(selTier?.groupSize ?? 1) > 1 ? `(group of ${selTier?.groupSize})` : ""}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button className="btn btn-outline btn-sm" onClick={() => { const q = Math.max(1, quantity - 1); setQuantity(q); setGuestNames(g => g.slice(0, q - 1)); }}>−</button>
-                      <span className="font-black" style={{ minWidth: 32, textAlign: "center", color: "var(--text-1)" }}>{quantity}</span>
-                      <button className="btn btn-outline btn-sm" onClick={() => { const q = Math.min(20, quantity + 1); setQuantity(q); setGuestNames(g => [...g, ...Array(Math.max(0, q - 1 - g.length)).fill("")]); }}>+</button>
-                      {price > 0 && <span style={{ fontSize: "0.78rem", color: "var(--text-3)", marginLeft: "0.4rem" }}>Total {formatCurrency(total)}</span>}
+                {cartCount > 0 && (
+                  <div className="p-3.5 rounded-xl mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-between">
+                      <span style={{ fontSize: "0.82rem", color: "var(--text-2)" }}>{cartCount} ticket{cartCount === 1 ? "" : "s"}</span>
+                      <span style={{ fontSize: "0.88rem", fontWeight: 800, color: "var(--text-1)" }}>{cartTotal === 0 ? "Free" : formatCurrency(cartTotal)}</span>
                     </div>
                   </div>
+                )}
 
-                  {quantity > 1 && (
-                    <div className="space-y-2">
-                      <label className="block font-semibold" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>Guest names (optional)</label>
-                      {Array.from({ length: quantity - 1 }).map((_, i) => (
-                        <input
-                          key={i}
-                          className="input"
-                          style={{ fontSize: "0.82rem", padding: "0.55rem 0.9rem" }}
-                          placeholder={`Guest ${i + 2} full name`}
-                          value={guestNames[i] ?? ""}
-                          onChange={e => setGuestNames(g => g.map((v, idx) => (idx === i ? e.target.value : v)))}
-                        />
-                      ))}
+                <button
+                  className="btn btn-primary w-full justify-center"
+                  style={{ padding: "0.85rem" }}
+                  onClick={() => {
+                    const firstTier = tiers.find((t) => (qty[t.id] ?? 0) > 0);
+                    openRegister(firstTier?.id, Math.max(1, firstTier ? qty[firstTier.id] : 1));
+                  }}
+                  disabled={soldOut && !event.waitlistEnabled}
+                >
+                  {soldOut ? (event.waitlistEnabled ? "Join the waitlist" : "Sold out") : cartCount > 0 ? `Get ${cartCount} ticket${cartCount === 1 ? "" : "s"}` : "Get tickets"}
+                </button>
+
+                <p style={{ fontSize: "0.72rem", color: "var(--text-3)", textAlign: "center", marginTop: "0.7rem", lineHeight: 1.6 }}>
+                  {event.requiresApproval ? "⏳ Approved before tickets are issued · " : "✅ Instant confirmation · "}
+                  {event.feeAbsorbedByOrganiser ? "fees included" : "8% + ₦100 fee shown at checkout"}
+                </p>
+
+                {event.capacity && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span style={{ fontSize: "0.74rem", color: "var(--text-3)" }}>
+                        {event.totalRegistrations ?? 0} / {event.capacity} registered
+                      </span>
+                      <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "var(--text-3)" }}>
+                        {Math.max(0, event.capacity - (event.totalRegistrations ?? 0))} spots left
+                      </span>
                     </div>
-                  )}
-
-                  {/* Invite code */}
-                  <div>
-                    <label className="block font-semibold mb-1" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
-                      Invitation code {selTier?.isInvitationOnly ? "*" : "(if you have one)"}
-                    </label>
-                    <input
-                      className="input"
-                      style={{ fontSize: "0.85rem", padding: "0.65rem 1rem", fontFamily: "monospace" }}
-                      placeholder="INV-XXXXXXXX"
-                      value={inviteCode}
-                      onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                    />
-                  </div>
-
-                  {ev.customQuestions?.map(q => (
-                    <div key={q.id}>
-                      <label className="block font-semibold mb-1" style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>{q.label}{q.required ? " *" : ""}</label>
-                      {q.type === "dropdown" && q.options
-                        ? <select onChange={e => setForm(x => ({ ...x, customAnswers: { ...x.customAnswers, [q.id]: e.target.value } }))} className="input" style={{ fontSize: "0.85rem" }}>
-                            <option value="">Select…</option>
-                            {q.options.map(o => <option key={o}>{o}</option>)}
-                          </select>
-                        : <input type={q.type === "email" ? "email" : q.type === "number" ? "number" : "text"}
-                            onChange={e => setForm(x => ({ ...x, customAnswers: { ...x.customAnswers, [q.id]: e.target.value } }))}
-                            className="input" style={{ fontSize: "0.85rem" }} />
-                      }
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{
+                        width: `${Math.min(100, Math.round(((event.totalRegistrations ?? 0) / event.capacity) * 100))}%`,
+                        background: (event.totalRegistrations ?? 0) / event.capacity >= 0.8 ? "linear-gradient(90deg,#DC2626,#EF4444)" : "linear-gradient(90deg,var(--violet),var(--violet-hi))",
+                      }} />
                     </div>
-                  ))}
-
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => setShowForm(false)} className="btn btn-outline flex-1" style={{ fontSize: "0.85rem" }}>Cancel</button>
-                    <button onClick={register} disabled={busy} className="btn btn-primary flex-1" style={{ fontSize: "0.85rem", opacity: busy ? 0.7 : 1 }}>
-                      {busy ? "Registering…" : price > 0 ? `Continue to payment` : "Complete Registration"}
-                    </button>
                   </div>
-                </div>
-
-              /* CTA state */
-              ) : (
-                <>
-                  <button
-                    onClick={() => setShowForm(true)}
-                    className="btn btn-primary w-full justify-center"
-                    style={{ fontSize: "0.95rem", padding: "0.9rem" }}
-                  >
-                    {openSlots.length > 0 ? "Book a time slot" : hasFree ? "Register for Free" : `Get ${selTier?.name ?? "Tickets"}`}
-                  </button>
-                  <p className="text-center mt-3" style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
-                    {ev.requiresApproval ? "⏳ Requires organiser approval" : "✅ Instant confirmation"}
-                    {price > 0 ? " · Secure payment" : ""}
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Share card */}
-            <div className="card p-4">
-              <p className="font-bold mb-3" style={{ fontSize: "0.85rem", color: "var(--text-1)" }}>Share this Event</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "WhatsApp", icon: "💬", href: `https://wa.me/?text=${encodeURIComponent(ev.title)}` },
-                  { label: "Twitter/X", icon: "✖️", href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(ev.title)}` },
-                ].map(s => (
-                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold transition-all duration-200"
-                    style={{ fontSize: "0.78rem", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-2)" }}
-                  >
-                    {s.icon} {s.label}
-                  </a>
-                ))}
+                )}
               </div>
+
+              {/* Share */}
+              <div className="p-4 rounded-2xl mt-4" style={{ border: "1px solid var(--border)" }}>
+                <p className="label-caps mb-3" style={{ color: "var(--text-3)" }}>Share this event</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`${event.title} — ${eventDateLine(event.startDate, event.endDate)}`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold"
+                    style={{ fontSize: "0.75rem", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-2)" }}
+                  >💬 WhatsApp</a>
+                  <button onClick={share} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold"
+                    style={{ fontSize: "0.75rem", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-2)" }}>
+                    {copied ? "✓ Copied" : "🔗 Copy link"}
+                  </button>
+                  <button onClick={() => toggle(slug)} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold"
+                    style={{ fontSize: "0.75rem", background: saved ? "#FEE2E2" : "var(--surface)", border: "1px solid var(--border)", color: saved ? "#991B1B" : "var(--text-2)" }}>
+                    {saved ? "♥ Saved" : "♡ Save"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Organiser card */}
+              {organiser && (
+                <div className="p-4 rounded-2xl mt-4" style={{ border: "1px solid var(--border)" }}>
+                  <p className="label-caps mb-3" style={{ color: "var(--text-3)" }}>Organised by</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white shrink-0"
+                      style={{ background: "linear-gradient(135deg, #7C3AED, #4C1D95)" }}>
+                      {(organiser.organisation ?? organiser.name).charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate" style={{ fontSize: "0.86rem", fontWeight: 700, color: "var(--text-1)" }}>
+                        {organiser.organisation ?? organiser.name}
+                      </p>
+                      <p className="truncate" style={{ fontSize: "0.74rem", color: "var(--text-3)" }}>{organiser.email}</p>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: "0.74rem", color: "var(--text-3)", marginTop: "0.7rem", lineHeight: 1.6 }}>
+                    All events on UEB are run by verified organisers. Questions? Message the organiser before you buy.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* ── More events ── */}
+        {related.length > 0 && (
+          <div className="mt-14 pt-8" style={{ borderTop: "1px solid var(--border)" }}>
+            <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)" }}>You might also like…</h2>
+            <p style={{ fontSize: "0.84rem", color: "var(--text-3)", marginBottom: "1.1rem" }}>
+              More events with similar dates, prices and formats.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {related.map((ev) => (
+                <EventRowCard key={ev.id} event={ev} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {registerOpen && (
+        <RegistrationModal
+          event={event}
+          tiers={tiers}
+          slots={workspace?.slots ?? []}
+          initialTierId={registerTier}
+          initialQuantity={registerQty}
+          onClose={() => setRegisterOpen(false)}
+          onRegistered={() => { setRegistered(true); load(); }}
+        />
+      )}
     </div>
   );
 }

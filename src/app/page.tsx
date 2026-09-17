@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import { db } from "@/db";
 import { events, registrations } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
-import EventCard from "@/components/EventCard";
+import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
 
 async function getStats() {
@@ -352,13 +352,7 @@ export default async function HomePage() {
               View all →
             </Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featured.map((ev, i) => (
-              <div key={ev.id} className="anim-fadeUp" style={{ animationDelay: `${i * 0.08}s` }}>
-                <EventCard event={ev} />
-              </div>
-            ))}
-          </div>
+          <FeaturedEvents events={featured} />
         </section>
       )}
 

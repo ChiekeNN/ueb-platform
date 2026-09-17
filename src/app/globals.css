@@ -42,7 +42,11 @@
 }
 
 /* ─── Reset & Base ──────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; }
+/* NOTE: only box-sizing is asserted here. Tailwind's preflight already zeroes
+   margins inside `@layer base`; repeating `margin: 0` *outside* a layer would
+   out-rank every utility (unlayered CSS beats @layer), which silently killed
+   `mx-auto` / `mt-*` / `space-y-*` and pushed every page to the left edge. */
+*, *::before, *::after { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 

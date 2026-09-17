@@ -36,8 +36,8 @@ curl -X POST http://localhost:3000/api/seed
 | Route | Purpose |
 |---|---|
 | `/` | Marketing page: boxed centred hero, capability pillars, segments, roadmap |
-| `/events` | Public event discovery (search + category filters) |
-| `/events/[slug]` | Event page: schedule, slots, vendors, tiers, group tickets, invite codes, payment hand-off, feedback |
+| `/events` | Public event discovery — sticky filter rail (search, city, date, price, format, category, sort) over card grid with click-to-open quick-look |
+| `/events/[slug]` | Event page: hero, "Good to know", organiser stats, agenda/slots, vendors, FAQ, sticky ticket rail, related events, feedback |
 | `/events/[slug]/ticket/[ticketNumber]` | Printable digital ticket with QR code and calendar file |
 | `/pay/[reference]` | Checkout (card / transfer / USSD) with fee breakdown |
 | `/events/[slug]/manage` | **Organiser console** — overview, attendees, tickets, invitations, schedule & slots, seating, vendors, comms, reports, post-event |
@@ -48,6 +48,40 @@ curl -X POST http://localhost:3000/api/seed
 
 See [`docs/FEATURE-MAP.md`](docs/FEATURE-MAP.md) for how each capability from the
 product brief is implemented.
+
+## Discovery & event-page idiom
+
+Attendee-facing surfaces follow the layout conventions organisers' audiences
+already know from large ticketing sites, but every link stays inside UEB:
+
+- **Cards** carry a 2:1 cover, `Tue, 9 Feb, 10 AM + 3 more` date lines,
+  `City · Venue` (or `Online event`), `Free` / `From ₦35,000`, the organising
+  account with its follower count, and Save/Share actions.
+- **Click any event — home page, Discover grid or the "More events" rail — and
+  the details pop out in place** (`EventDetailsModal`): cover, badges, date and
+  location, price, highlights, organiser card, clamped overview and a
+  `Get tickets` CTA that opens the registration flow without a page change.
+  "Full details" is the only navigation, and it goes to the UEB event page.
+- **The event page** keeps a sticky ticket rail (tier steppers, capacity bar,
+  `Get tickets`), a floating action bar that appears once the hero scrolls away,
+  and an organiser block with followers / events hosted / attendees hosted.
+- **Saved events** live in `localStorage` (`ueb.saved.events`) — no accounts
+  required, no third-party calls.
+- Covers ship in `public/events/*.jpg`; a missing cover degrades to a
+  category-coloured gradient rather than breaking the card.
+
+`GET /api/events` backs all of it with facets — `status`, `category`, `city`,
+`format`, `when=today|tomorrow|weekend|week|month`, `sort=date|newest`,
+`search`, `limit` (≤120) and `tiers=1` to hydrate ticket types, next session
+date, session and slot counts plus the organiser/org profile in one round trip.
+
+### Layout rule (important)
+
+`src/app/globals.css` only asserts `box-sizing` in its reset. Utility-driven
+layout assumes Tailwind's preflight owns vertical margins; unlayered CSS
+outranks `@layer` utilities, so re-declaring `margin: 0` outside a layer
+silently kills `mx-auto` and every `mt-*` spacing class — which is what pushed
+page content to the left edge. Keep resets inside Tailwind's layers.
 
 ## API surface
 

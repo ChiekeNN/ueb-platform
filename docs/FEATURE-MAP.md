@@ -39,8 +39,8 @@ API → screen) and exercised by the seed data.
 | Surface | Route | Who it's for |
 |---|---|---|
 | Marketing home | `/` | Prospective organisers — centred hero, 25-capability pillars, 15 segments, Nigeria → Africa → international roadmap |
-| Event discovery | `/events` | Attendees |
-| Event page | `/events/[slug]` | Attendees — schedule, slots, vendors, ticket tiers, group tickets, invite codes, feedback |
+| Event discovery | `/events` | Attendees — sticky filter rail (search, city, date, price, format, category, sort) + card grid; clicking a card opens the quick-look pop-out |
+| Event page | `/events/[slug]` | Attendees — hero, "Good to know", organiser stats, agenda/slots, vendors, FAQ, sticky ticket rail, related events, feedback |
 | Digital ticket | `/events/[slug]/ticket/[ticketNumber]` | Attendees — printable ticket + QR + calendar file |
 | Checkout | `/pay/[reference]` | Attendees — card / transfer / USSD / direct transfer |
 | Organiser console | `/events/[slug]/manage` | Organisers — 10 tabs covering the full lifecycle |
@@ -64,7 +64,14 @@ Beyond the original tables (`users`, `organisations`, `events`, `ticket_tiers`,
 `vendors` · `payments` · `event_messages` · `checkin_logs` ·
 `event_feedback` · `waitlist_entries`
 
-New columns: `events.recurrence_rule`, `events.seat_selection_enabled`,
+Discovery & presentation columns (added for the attendee-facing idiom):
+`organisations.followers | events_hosted | total_attendees | hosting_since |
+is_verified`; `events.tagline | format | timezone | gallery | highlights |
+faqs | age_restriction | sold_out | sold_out_at | listed`;
+`registrations.tab | unit_price | attendee_title | ticket_name |
+checked_in_guests`.
+
+Original columns: `events.recurrence_rule`, `events.seat_selection_enabled`,
 `events.waitlist_enabled`, `events.post_event_message`, `events.survey_url`,
 `events.completed_at`; `registrations.quantity | group_id | is_group_lead |
 guests | slot_id | slot_label | seat_id | seat_label | ticket_issued_at |
@@ -79,9 +86,34 @@ payment_reference | checked_in_by`; `invitations.*` (tier, guests, notes, phone)
 | WhatsApp / social share | Share links on the event page | — |
 | Certificates | `issue_certificates` returns the list of admitted guests | Attach a PDF renderer + delivery |
 
+## Attendee surfaces — layout idiom
+
+Discovery and event pages mirror the card/detail conventions audiences expect
+from large ticketing sites, reimplemented against UEB's own API:
+
+- **Facets in one request** — `GET /api/events?status=&category=&city=&format=&when=today|tomorrow|weekend|week|month&sort=date|newest&search=&limit=&tiers=1`
+  left-joins the organiser and organisation and (with `tiers=1`) attaches ticket
+  types, next session date, session/time-slot counts and follower counts.
+  Free/paid is a client-side refinement on the tier payload.
+- **Card anatomy** — 2:1 cover, `Tue, 9 Feb, 10 AM + 3 more`, `City · Venue` /
+  `Online event`, `Free` / `From ₦35,000`, organiser + followers, Save and Share.
+- **Quick-look pop-out** — `EventDetailsModal` opens from the home page, the
+  Discover grid and the "More events" rail; it nests `RegistrationModal` so
+  registration completes without leaving the page. Only "Full details"
+  navigates, and it stays on UEB.
+- **Saved events** — `src/lib/useSavedEvents.ts`, `localStorage` key
+  `ueb.saved.events`, broadcast on `ueb:saved-changed`.
+- **Covers** — `public/events/*.jpg`; a missing image falls back to a
+  category gradient rather than an empty card.
+
 ## Product boundaries (deliberate)
 
 - The public event page is **not** the organiser console: management lives behind
   `/events/[slug]/manage`, which is what the "Manage Event" buttons link to.
 - Free events stay free on every plan — the 8% + ₦100 fee only applies to paid tickets.
 - Currency formatting is naira-first (`en-NG`), ready for multi-currency expansion.
+- Visitors are never handed off to a third-party ticketing site: discovery,
+  quick-look and registration all resolve inside UEB.
+- Page shells are boxed and centred (`max-w-* + mx-auto`). The global reset must
+  stay inside Tailwind's layers — unlayered `margin: 0` outranks `@layer`
+  utilities and collapses every centring and spacing class.

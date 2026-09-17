@@ -105,6 +105,11 @@ export const organisations = pgTable("organisations", {
   country: varchar("country", { length: 100 }).default("Nigeria"),
   city: varchar("city", { length: 100 }),
   ownerId: uuid("owner_id").references(() => users.id),
+  followers: integer("followers").default(0),
+  eventsHosted: integer("events_hosted").default(0),
+  totalAttendees: integer("total_attendees").default(0),
+  hostingSince: timestamp("hosting_since"),
+  isVerified: boolean("is_verified").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -112,12 +117,17 @@ export const events = pgTable("events", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: varchar("title", { length: 500 }).notNull(),
   slug: varchar("slug", { length: 500 }).notNull().unique(),
+  /** Short subtitle shown under the title on the event page and cards. */
+  tagline: varchar("tagline", { length: 300 }),
   description: text("description"),
   category: eventCategoryEnum("category").default("other"),
   type: eventTypeEnum("type").default("standard"),
+  /** Eventbrite-style format facet: how people attend. */
+  format: varchar("format", { length: 30 }).default("in_person"),
   status: eventStatusEnum("status").default("draft"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  timezone: varchar("timezone", { length: 60 }).default("Africa/Lagos"),
   venue: varchar("venue", { length: 500 }),
   city: varchar("city", { length: 255 }),
   country: varchar("country", { length: 100 }).default("Nigeria"),
@@ -125,7 +135,14 @@ export const events = pgTable("events", {
   virtualLink: text("virtual_link"),
   capacity: integer("capacity"),
   imageUrl: text("image_url"),
+  /** Extra hero images cycled behind the main one. */
+  gallery: jsonb("gallery").$type<string[]>().default([]),
   bannerColor: varchar("banner_color", { length: 50 }).default("#7C3AED"),
+  /** "Good to know" bullets, e.g. "You'll learn the pricing framework". */
+  highlights: jsonb("highlights").$type<string[]>().default([]),
+  /** FAQ accordion on the event page. */
+  faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]),
+  ageRestriction: varchar("age_restriction", { length: 50 }),
   organiserId: uuid("organiser_id").references(() => users.id),
   organisationId: uuid("organisation_id").references(() => organisations.id),
   requiresApproval: boolean("requires_approval").default(false),
@@ -144,6 +161,10 @@ export const events = pgTable("events", {
   postEventMessage: text("post_event_message"),
   surveyUrl: text("survey_url"),
   completedAt: timestamp("completed_at"),
+  // Sales lifecycle
+  soldOut: boolean("sold_out").default(false),
+  soldOutAt: timestamp("sold_out_at"),
+  listed: boolean("listed").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -199,6 +220,12 @@ export const registrations = pgTable("registrations", {
   // Ticketing lifecycle
   ticketIssuedAt: timestamp("ticket_issued_at"),
   paymentReference: varchar("payment_reference", { length: 100 }),
+  // Order book (Eventbrite-style orders: Tickets / Donations / Add-ons tabs)
+  tab: varchar("tab", { length: 50 }).default("tickets"),
+  unitPrice: decimal("unit_price", { precision: 15, scale: 2 }).default("0"),
+  attendeeTitle: varchar("attendee_title", { length: 20 }),
+  ticketName: varchar("ticket_name", { length: 255 }),
+  checkedInGuests: integer("checked_in_guests").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -404,8 +431,7 @@ export type RecurrenceRule = {
   durationMinutes?: number;
 };
 
-export type EventMessageChannel = "email" | "sms" | "whatsapp" | "in_app";
-export type MessageAudience =
+export type EventMessageChannel = "email" | "sms" | "whatsapp" | "in_app";export type MessageAudience =
   | "all"
   | "approved"
   | "pending"

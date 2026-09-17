@@ -5,6 +5,7 @@ import {
   ticketTiers,
   registrations,
   users,
+  organisations,
   eventSlots,
   eventOccurrences,
   seatingSections,
@@ -36,9 +37,76 @@ export async function POST(_req: NextRequest) {
       adminUser = existingUsers[0];
     }
 
+    /* ── Organisations (the "By …" card on every event page) ── */
+    const orgSeeds = [
+      {
+        name: "Unique Events Booking Ltd",
+        slug: "unique-events-booking",
+        description: "Nigeria's event operating company — conferences, summits and corporate gatherings across West Africa.",
+        email: "hello@ueb.ng",
+        city: "Lagos",
+        followers: 4187,
+        eventsHosted: 96,
+        totalAttendees: 41200,
+        isVerified: true,
+      },
+      {
+        name: "UPEC University",
+        slug: "upec-university",
+        description: "University events office: careers fairs, guest lectures, alumni meet-ups and student conferences.",
+        email: "events@upec.edu.ng",
+        city: "Lagos",
+        followers: 1236,
+        eventsHosted: 58,
+        totalAttendees: 18900,
+        isVerified: true,
+      },
+      {
+        name: "ABC Corporation",
+        slug: "abc-corporation",
+        description: "Corporate training and leadership development partner for West African enterprises.",
+        email: "training@abccorp.ng",
+        city: "Abuja",
+        followers: 742,
+        eventsHosted: 24,
+        totalAttendees: 5300,
+        isVerified: false,
+      },
+    ];
+
+    const orgs: (typeof organisations.$inferSelect)[] = [];
+    for (const o of orgSeeds) {
+      const existing = await db.select().from(organisations).where(eq(organisations.slug, o.slug)).limit(1);
+      if (existing.length > 0) {
+        orgs.push(existing[0]);
+      } else {
+        const [created] = await db.insert(organisations).values({
+          ...o,
+          ownerId: adminUser.id,
+          hostingSince: new Date(Date.now() - 900 * 24 * 3600 * 1000),
+        }).returning();
+        orgs.push(created);
+      }
+    }
+
     const demoEvents = [
       {
         title: "Annual Entrepreneurship Summit 2027",
+        tagline: "Three days of keynotes, workshops and investor matchmaking for African founders.",
+        imageUrl: "/events/summit.jpg",
+        gallery: ["/events/summit.jpg", "/events/tech-festival.jpg"],
+        format: "in_person" as const,
+        highlights: [
+          "3 days of keynotes, workshops and curated networking",
+          "Investor matchmaking with 40+ funds active in Africa",
+          "Pitch arena with ₦10m in non-dilutive grants",
+          "Full access to the exhibition floor and after-parties",
+        ],
+        faqs: [
+          { question: "What should I bring?", answer: "A valid ID and your digital ticket QR code (printed or on your phone)." },
+          { question: "Is there parking at the venue?", answer: "Yes — the Eko Convention Centre has paid on-site parking and overflow parking 200m away." },
+          { question: "Can I transfer my ticket to someone else?", answer: "Yes, up to 48 hours before the event. Contact the organiser with the new attendee's details." },
+        ],
         description: "Nigeria's premier entrepreneurship conference bringing together innovators, investors, and industry leaders. Three days of inspiring keynotes, workshops, and networking sessions designed to transform your business vision into reality.",
         category: "conference" as const,
         type: "standard" as const,
@@ -60,6 +128,15 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "Corporate Leadership Workshop",
+        tagline: "One intensive day for executives: modern leadership, team management and digital transformation.",
+        imageUrl: "/events/workshop.jpg",
+        format: "in_person" as const,
+        highlights: [
+          "8 hours of facilitated executive training",
+          "Leadership diagnostic and personal action plan",
+          "Lunch and refreshments included",
+          "Certificate of completion",
+        ],
         description: "An intensive one-day workshop for senior executives and managers focused on modern leadership techniques, team management, and organisational transformation in the digital age.",
         category: "workshop" as const,
         type: "standard" as const,
@@ -75,6 +152,18 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "Port Harcourt Tech Festival",
+        tagline: "Free two-day festival celebrating Niger Delta innovation: demos, hackathons and hiring.",
+        imageUrl: "/events/tech-festival.jpg",
+        format: "in_person" as const,
+        highlights: [
+          "Free entry for everyone (registration required)",
+          "Live hackathon with ₦2m in prizes",
+          "30+ startups on the demo floor",
+          "Recruiters hiring on both days",
+        ],
+        faqs: [
+          { question: "Do I need to print my ticket?", answer: "No — your QR code works straight from your phone screen." },
+        ],
         description: "A free technology festival celebrating innovation in the Niger Delta. Featuring demo showcases, hackathons, panel discussions, and opportunities to connect with tech companies and startups.",
         category: "networking" as const,
         type: "standard" as const,
@@ -90,6 +179,15 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "RCCG Special Convention 2027",
+        tagline: "Three days of worship, word and fellowship at Redemption Camp.",
+        imageUrl: "/events/convention.jpg",
+        format: "in_person" as const,
+        highlights: [
+          "Free registration for all members and guests",
+          "Simultaneous interpretation available",
+          "Overnight accommodation blocks on camp",
+          "Children's church for ages 3–12",
+        ],
         description: "Annual special convention for members and guests. A powerful gathering featuring worship, word, and fellowship. All are welcome.",
         category: "church" as const,
         type: "standard" as const,
@@ -104,6 +202,15 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "Professional Photography Masterclass",
+        tagline: "A hands-on studio day with award-winning photographers — limited to 30 seats.",
+        imageUrl: "/events/masterclass.jpg",
+        format: "in_person" as const,
+        highlights: [
+          "Small group: just 30 participants",
+          "Studio lighting, portrait and product practicals",
+          "Portfolio review with the instructors",
+          "Lunch included",
+        ],
         description: "Learn professional photography techniques from award-winning photographers. Covers portrait, product, and event photography. Limited to 30 participants for maximum learning experience.",
         category: "training" as const,
         type: "standard" as const,
@@ -119,6 +226,15 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "Startup Growth Clinic (Weekly)",
+        tagline: "Book a 30-minute growth appointment with a mentor — every Wednesday, for 8 weeks.",
+        imageUrl: "/events/startup-clinic.jpg",
+        format: "hybrid" as const,
+        highlights: [
+          "8 weekly mentoring sessions (Wednesdays)",
+          "30-minute one-to-one appointments",
+          "Growth scorecard and action plan each session",
+          "Join online or in person at CcHUB",
+        ],
         description: "A recurring weekly clinic where founders book a 30-minute appointment with growth mentors. Bring your numbers — leave with an action plan.",
         category: "seminar" as const,
         type: "recurring" as const,
@@ -141,6 +257,15 @@ export async function POST(_req: NextRequest) {
       },
       {
         title: "Graduate Careers Appointment Day",
+        tagline: "Book a personal 30-minute slot with an advisor or hiring partner.",
+        imageUrl: "/events/careers-day.jpg",
+        format: "in_person" as const,
+        highlights: [
+          "Free 30-minute appointments from 9am",
+          "CV clinic and mock interviews",
+          "Meet recruiters from 15+ employers",
+          "Open to all final-year students and graduates",
+        ],
         description: "Book a personal 30-minute appointment with a careers advisor or one of our hiring partners. Slots open daily from 9am to 4pm.",
         category: "university" as const,
         type: "timeslot" as const,
@@ -187,14 +312,52 @@ export async function POST(_req: NextRequest) {
 
     const sampleNames = ["Emeka Obi", "Fatima Hassan", "Chukwuemeka Eze", "Aisha Mohammed", "Tunde Adeyemi", "Ngozi Okafor", "Babatunde Lawal", "Amina Yusuf", "Ikenna Nwankwo", "Kemi Adeleke", "Obinna Okonkwo", "Halima Bello"];
 
+    let backfilled = 0;
+    let created = 0;
+
     for (let i = 0; i < demoEvents.length; i++) {
       const eventData = demoEvents[i];
       const slug = slugify(eventData.title) + "-" + nanoid(6);
 
+      const org = orgs[i % 3 === 2 ? 2 : i % 3];
+
+      /* ── Idempotency: if this demo event already exists, only backfill the
+         Eventbrite-style display fields (cover, tagline, org link, gallery…)
+         and leave its tiers / registrations / seats untouched. ── */
+      const existingEvent = await db
+        .select({ id: events.id, organisationId: events.organisationId })
+        .from(events)
+        .where(eq(events.title, eventData.title))
+        .limit(1);
+
+      if (existingEvent.length > 0) {
+        const ex = existingEvent[0];
+        await db.update(events).set({
+          tagline: eventData.tagline,
+          imageUrl: eventData.imageUrl,
+          gallery: eventData.gallery,
+          format: eventData.format,
+          highlights: eventData.highlights,
+          faqs: eventData.faqs,
+          organisationId: org.id,
+        }).where(eq(events.id, ex.id));
+
+        if (!ex.organisationId) {
+          await db.update(organisations)
+            .set({ eventsHosted: (org.eventsHosted ?? 0) + 1 })
+            .where(eq(organisations.id, org.id));
+          org.eventsHosted = (org.eventsHosted ?? 0) + 1;
+        }
+        backfilled++;
+        continue;
+      }
+
+      created++;
       const [event] = await db.insert(events).values({
         ...eventData,
         slug,
         organiserId: adminUser.id,
+        organisationId: org.id,
         totalRegistrations: 0,
         totalCheckins: 0,
         totalRevenue: "0",
@@ -411,9 +574,13 @@ export async function POST(_req: NextRequest) {
         totalCheckins: Math.floor(numRegs * 0.3),
         totalRevenue: totalRev.toString(),
       }).where(eq(events.id, event.id));
+
+      await db.update(organisations)
+        .set({ eventsHosted: (org.eventsHosted ?? 0) + 1 })
+        .where(eq(organisations.id, org.id));
     }
 
-    return NextResponse.json({ success: true, message: "Demo data seeded successfully!" });
+    return NextResponse.json({ success: true, message: "Demo data seeded successfully!", created, backfilled });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Seed failed: " + String(error) }, { status: 500 });

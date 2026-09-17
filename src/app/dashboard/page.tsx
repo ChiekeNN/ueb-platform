@@ -212,13 +212,13 @@ export default function DashboardPage() {
 
                 {/* Event actions header */}
                 <div className="card p-5">
-                  <div className="flex items-start justify-between mb-5 gap-4">
+                  <div className="flex flex-wrap items-start justify-between mb-5 gap-4">
                     <div className="min-w-0">
                       <p className="label-caps mb-1" style={{ color:"var(--violet-mid)" }}>{EVENT_CATEGORIES.find(c=>c.value===sel.category)?.label}</p>
                       <h2 className="heading-2 truncate" style={{ color:"var(--text-1)" }}>{sel.title}</h2>
                       <p style={{ fontSize:"0.8rem", color:"var(--text-3)", marginTop:"0.2rem" }}>{sel.city} · {sel.startDate ? formatDate(sel.startDate):"TBD"}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link href={`/events/${sel.slug}/manage`} className="btn btn-dark btn-sm" style={{ fontSize:"0.78rem" }}>⚙ Manage</Link>
                       <Link href={`/events/${sel.slug}`} className="btn btn-outline btn-sm" style={{ fontSize:"0.78rem" }}>View Page</Link>
                       <button onClick={()=>togglePublish(sel)} className="btn btn-sm" style={{ fontSize:"0.78rem", background:sel.status==="published"?"var(--surface-2)":"var(--violet-mid)", color:sel.status==="published"?"var(--text-1)":"#fff" }}>
@@ -251,7 +251,7 @@ export default function DashboardPage() {
                 <div className="card p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-bold" style={{ fontSize:"1rem", color:"var(--text-1)" }}>Registrations</h3>
-                    <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                    <div className="flex gap-1 overflow-x-auto no-scrollbar min-w-0">
                       {STATUS_TABS.map(tab=>(
                         <button
                           key={tab.value}

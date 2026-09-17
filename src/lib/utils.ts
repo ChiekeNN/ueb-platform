@@ -13,6 +13,122 @@ export function formatCurrency(amount: number | string, currency = "NGN"): strin
   return num.toLocaleString("en-US", { style: "currency", currency });
 }
 
+/** "Fri, Nov 17, 8:30 AM" — the compact card format used across discovery. */
+export function eventDateShort(date: Date | string | null | undefined): string {
+  if (!date) return "Date TBA";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const day = d.toLocaleDateString("en-GB", { weekday: "short" });
+  const rest = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return `${day}, ${rest}, ${formatTimeCompact(d)}`;
+}
+
+export function formatTimeCompact(d: Date): string {
+  const minutes = d.getMinutes();
+  const hour12 = d.getHours() % 12 || 12;
+  const suffix = d.getHours() >= 12 ? "PM" : "AM";
+  return minutes === 0 ? `${hour12} ${suffix}` : `${hour12}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+/** "Thursday, September 17 • 6:30 PM - 8 PM" — the event page date line. */
+export function eventDateLine(start: Date | string | null | undefined, end?: Date | string | null): string {
+  if (!start) return "Date and time to be announced";
+  const s = typeof start === "string" ? new Date(start) : start;
+  const weekday = s.toLocaleDateString("en-GB", { weekday: "long" });
+  const dayMonth = s.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  let line = `${weekday}, ${dayMonth} • ${formatTimeCompact(s)}`;
+  if (end) {
+    const e = typeof end === "string" ? new Date(end) : end;
+    line += ` - ${formatTimeCompact(e)}`;
+  }
+  return line;
+}
+
+/** "Thu, Nov 5, 10:00 AM + 1 more" — used when an event repeats. */
+export function eventDateWithMore(date: Date | string | null | undefined, extraCount: number): string {
+  const base = eventDateShort(date);
+  return extraCount > 0 ? `${base} + ${extraCount} more` : base;
+}
+
+export function formatTimeRange(start: Date | string | null | undefined, end: Date | string | null | undefined): string {
+  if (!start) return "";
+  const s = typeof start === "string" ? new Date(start) : start;
+  const out = formatTimeCompact(s);
+  if (!end) return out;
+  const e = typeof end === "string" ? new Date(end) : end;
+  return `${out} - ${formatTimeCompact(e)}`;
+}
+
+/** Human duration: "1 hour 30 minutes", "3 days". */
+export function formatDuration(start: Date | string | null | undefined, end: Date | string | null | undefined): string {
+  if (!start || !end) return "";
+  const s = typeof start === "string" ? new Date(start) : start;
+  const e = typeof end === "string" ? new Date(end) : end;
+  const mins = Math.round((e.getTime() - s.getTime()) / 60000);
+  if (mins <= 0) return "";
+  const days = Math.floor(mins / 1440);
+  const hours = Math.floor((mins % 1440) / 60);
+  const minutes = mins % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days} day${days > 1 ? "s" : ""}`);
+  if (hours) parts.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+  if (minutes && !days) parts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+  return parts.join(" ");
+}
+
+export type PriceSummary = { label: string; free: boolean; minPrice: number; maxPrice: number };
+
+/**
+ * Price label for discovery cards:
+ * "Free" · "From ₦15,000" · "₦25,000" — free wins when any tier is free.
+ */
+export function priceSummaryLabel(tiers: { price: string | number | null; type?: string | null }[]): PriceSummary {
+  const prices = tiers.map((t) => Number(t.price ?? 0)).filter((n) => !Number.isNaN(n));
+  if (prices.length === 0) return { label: "Registration required", free: true, minPrice: 0, maxPrice: 0 };
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  if (min === 0) return { label: "Free", free: true, minPrice: 0, maxPrice: max };
+  const label = min === max ? formatCurrency(min) : `From ${formatCurrency(min)}`;
+  return { label, free: false, minPrice: min, maxPrice: max };
+}
+
+/** "Lagos · Landmark Centre" — the location line on cards and the event page. */
+export function locationLine(city?: string | null, venue?: string | null, format?: string | null): string {
+  if (format === "online") return "Online event";
+  return [city, venue].filter(Boolean).join(" · ") || "Location to be announced";
+}
+
+export const EVENT_FORMATS = [
+  { value: "in_person", label: "In-person", icon: "📍" },
+  { value: "online", label: "Online", icon: "💻" },
+  { value: "hybrid", label: "Hybrid", icon: "🌐" },
+] as const;
+
+export function formatLabel(format?: string | null): string {
+  return EVENT_FORMATS.find((f) => f.value === format)?.label ?? "In-person";
+}
+
+/** Relative countdown used on the floating action bar: "Starts in 3 days". */
+export function timeUntil(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const target = typeof date === "string" ? new Date(date) : date;
+  const diff = target.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.round(abs / 60000);
+  const hours = Math.round(mins / 60);
+  const days = Math.round(hours / 24);
+  const scale = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  const value = mins < 60 ? scale(mins, "minute") : hours < 36 ? scale(hours, "hour") : scale(days, "day");
+  return diff >= 0 ? `Starts in ${value}` : `Ended ${value} ago`;
+}
+
+/** Number of distinct days represented in a list of session/slot dates. */
+export function distinctDayCount(dates: (Date | string | null | undefined)[]): number {
+  const set = new Set(
+    dates.filter((d): d is Date | string => !!d).map((d) => new Date(d).toISOString().slice(0, 10))
+  );
+  return set.size;
+}
+
 export const UEB_PERCENT_FEE = 0.08;
 export const UEB_FLAT_FEE = 100;
 

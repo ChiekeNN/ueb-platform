@@ -1,15 +1,18 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
-import EventCard from "@/components/EventCard";
-import { EVENT_CATEGORIES } from "@/lib/utils";
+import EventCard, { type EventCardData } from "@/components/EventCard";
+import EventDetailsModal from "@/components/EventDetailsModal";
+import { EVENT_CATEGORIES, EVENT_FORMATS, eventDateShort } from "@/lib/utils";
 import Link from "next/link";
 
-type Event = {
-  id: string; title: string; slug: string; description?: string | null;
-  category?: string | null; startDate?: string | null; venue?: string | null;
-  city?: string | null; imageUrl?: string | null; bannerColor?: string | null;
-  totalRegistrations?: number | null; capacity?: number | null; status?: string | null;
+type Event = EventCardData & {
+  description?: string | null;
+  category?: string | null;
+  status?: string | null;
+  nextSessionDate?: string | null;
+  sessionCount?: number | null;
+  timeSlotCount?: number | null;
 };
 
 const CAT_ICONS: Record<string, string> = {
@@ -19,27 +22,63 @@ const CAT_ICONS: Record<string, string> = {
   fundraising: "💝", private: "🔒", other: "🎪",
 };
 
+const CITIES = [
+  { value: "all", label: "All cities", icon: "🇳🇬" },
+  { value: "Lagos", label: "Lagos", icon: "🌊" },
+  { value: "Abuja", label: "Abuja", icon: "🏛️" },
+  { value: "Port Harcourt", label: "Port Harcourt", icon: "🛢️" },
+  { value: "Online", label: "Online", icon: "💻" },
+];
+
+const DATES = [
+  { value: "any", label: "Any date" },
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "weekend", label: "This weekend" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+];
+
+const PRICES = [
+  { value: "any", label: "Any price" },
+  { value: "free", label: "Free" },
+  { value: "paid", label: "Paid" },
+];
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [city, setCity] = useState("all");
+  const [format, setFormat] = useState("all");
+  const [when, setWhen] = useState("any");
+  const [price, setPrice] = useState("any");
+  const [sort, setSort] = useState("date");
   const [seeding, setSeeding] = useState(false);
+  const [openSlug, setOpenSlug] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      const p = new URLSearchParams({ status: "published" });
+      const p = new URLSearchParams({ status: "published", tiers: "1", sort });
       if (category !== "all") p.set("category", category);
+      if (city !== "all") p.set("city", city);
+      if (format !== "all") p.set("format", format);
+      if (when !== "any") p.set("when", when);
       if (search) p.set("search", search);
       const res = await fetch(`/api/events?${p}`);
       const data = await res.json();
-      setEvents(data.events ?? []);
+      let list: Event[] = data.events ?? [];
+      // Free/paid is a client-side refinement on the tier payload.
+      if (price === "free") list = list.filter((e) => (e.tiers ?? []).some((t) => Number(t.price ?? 0) === 0));
+      if (price === "paid") list = list.filter((e) => (e.tiers ?? []).length > 0 && (e.tiers ?? []).every((t) => Number(t.price ?? 0) > 0));
+      setEvents(list);
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, [category, search]);
+  }, [category, city, format, when, price, search, sort]);
 
   useEffect(() => {
-    const t = setTimeout(fetchEvents, 300);
+    const t = setTimeout(fetchEvents, 280);
     return () => clearTimeout(t);
   }, [fetchEvents]);
 
@@ -50,144 +89,227 @@ export default function EventsPage() {
     setSeeding(false);
   };
 
+  const resetAll = () => {
+    setSearch(""); setCategory("all"); setCity("all"); setFormat("all"); setWhen("any"); setPrice("any");
+  };
+
+  const activeFilters = [category !== "all", city !== "all", format !== "all", when !== "any", price !== "any", !!search].filter(Boolean).length;
+  const trimmed = events.slice(0, 40);
+  const nearby = events.slice(0, 4);
+
   return (
     <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
       <Navbar />
 
-      {/* Page header */}
-      <div
-        className="relative overflow-hidden pt-28 pb-14"
-        style={{ background: "linear-gradient(160deg, #0A0A0F 0%, #1C1C2E 50%, #2D1B69 100%)" }}
-      >
-        <div
-          className="absolute inset-0 opacity-50"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)`,
-            backgroundSize: "50px 50px",
-          }}
-        />
-        <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8">
-          <p className="label-caps mb-3" style={{ color: "rgba(167,139,250,0.8)" }}>Discover</p>
-          <h1 className="display-2 text-white mb-4">Find your next event</h1>
-          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "1rem", maxWidth: 480 }}>
-            Browse conferences, workshops, concerts, church events and more — all in one place.
+      {/* ── Page header (Eventbrite keeps this light; we keep the UEB tint) ── */}
+      <div className="pt-16" style={{ background: "linear-gradient(120deg,#0A0A0F 0%,#1C1C2E 55%,#2D1B69 100%)" }}>
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 pt-10 pb-8">
+          <h1 className="display-2 text-white" style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)" }}>Find your next event</h1>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.95rem", marginTop: "0.4rem" }}>
+            Conferences, workshops, concerts, church events, appointments and more — across Nigeria.
           </p>
         </div>
-        <div className="absolute bottom-0 inset-x-0 h-16" style={{ background: "linear-gradient(to bottom, transparent, var(--surface))" }} />
       </div>
 
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10">
-        {/* Search & filter bar */}
-        <div
-          className="flex flex-col sm:flex-row gap-3 mb-8 p-3 rounded-2xl"
-          style={{ background: "#fff", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}
-        >
-          <div className="flex-1 relative">
-            <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="7" cy="7" r="5" stroke="var(--text-3)" strokeWidth="1.5"/>
-                <path d="M11 11l3 3" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+      {/* ── Sticky filter rail ── */}
+      <div className="sticky z-40" style={{ top: 64, background: "rgba(255,255,255,0.97)", backdropFilter: "blur(16px)", borderBottom: "1px solid var(--border)", boxShadow: "0 2px 14px rgba(10,10,15,0.05)" }}>
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-3">
+          {/* Row 1: search + city tabs + sort */}
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 min-w-0">
+            <div className="flex-1 relative">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="7" cy="7" r="5" stroke="var(--text-3)" strokeWidth="1.5" />
+                  <path d="M11 11l3 3" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search events, organisers or venues…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="input"
+                style={{ paddingLeft: "2.5rem", background: "#fff", border: "1.5px solid var(--border)" }}
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search events, cities, venues…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="input"
-              style={{ paddingLeft: "2.5rem", border: "none", boxShadow: "none", background: "var(--surface)", borderRadius: "var(--radius-md)" }}
-            />
+
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar -mx-5 px-5 sm:mx-0 sm:px-0 flex-none lg:flex-none">
+              {CITIES.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setCity(c.value)}
+                  className="shrink-0 px-3.5 py-2 rounded-lg font-semibold transition-all"
+                  style={{
+                    fontSize: "0.78rem",
+                    background: city === c.value ? "var(--violet-mid)" : "transparent",
+                    color: city === c.value ? "#fff" : "var(--text-2)",
+                  }}
+                >
+                  <span style={{ marginRight: 4 }}>{c.icon}</span>{c.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <label style={{ fontSize: "0.76rem", color: "var(--text-3)", fontWeight: 600 }}>Sort by</label>
+              <select className="input" style={{ width: "auto", fontSize: "0.8rem", padding: "0.5rem 0.75rem", cursor: "pointer" }} value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="date">Date</option>
+                <option value="newest">Newest</option>
+              </select>
+              <Link href="/events/create" className="btn btn-primary btn-sm" style={{ whiteSpace: "nowrap" }}>+ Create</Link>
+            </div>
           </div>
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="input"
-            style={{ width: "auto", minWidth: 180, background: "var(--surface)", border: "none", borderRadius: "var(--radius-md)", cursor: "pointer" }}
-          >
-            <option value="all">All Categories</option>
-            {EVENT_CATEGORIES.map(c => (
-              <option key={c.value} value={c.value}>{CAT_ICONS[c.value]} {c.label}</option>
-            ))}
-          </select>
-          <Link href="/events/create" className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
-            + Create Event
-          </Link>
+
+          {/* Row 2: quick filters */}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <FilterSelect icon="🗓️" value={when} onChange={setWhen} options={DATES} />
+            <FilterSelect icon="🎟️" value={price} onChange={setPrice} options={PRICES} />
+            <FilterSelect
+              icon="📍"
+              value={format}
+              onChange={setFormat}
+              options={[{ value: "all", label: "Any format" }, ...EVENT_FORMATS.map((f) => ({ value: f.value, label: `${f.icon} ${f.label}` }))]}
+            />
+            <FilterSelect
+              icon="🏷️"
+              value={category}
+              onChange={setCategory}
+              options={[{ value: "all", label: "All categories" }, ...EVENT_CATEGORIES.map((c) => ({ value: c.value, label: `${CAT_ICONS[c.value] ?? ""} ${c.label}` }))]}
+            />
+            {activeFilters > 0 && (
+              <button onClick={resetAll} className="btn btn-sm" style={{ background: "var(--surface-2)", color: "var(--text-2)", fontSize: "0.75rem" }}>
+                Clear filters ({activeFilters})
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8">
+        {/* Results header */}
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+          <div>
+            <h2 className="heading-2" style={{ color: "var(--text-1)" }}>
+              {events.length} {events.length === 1 ? "event" : "events"}
+              {city !== "all" ? ` in ${city}` : " in Nigeria"}
+            </h2>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginTop: "0.2rem" }}>
+              {search ? `Matching “${search}”` : "Curated from organisers across the country"}
+            </p>
+          </div>
+          {events.length > 0 && (
+            <p style={{ fontSize: "0.78rem", color: "var(--text-3)" }}>
+              Click any event to preview details and register without leaving this page
+            </p>
+          )}
         </div>
 
-        {/* Category chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-8 pb-1">
-          {[{ value: "all", label: "All Events" }, ...EVENT_CATEGORIES].map(c => (
-            <button
-              key={c.value}
-              onClick={() => setCategory(c.value)}
-              className="flex items-center gap-1.5 shrink-0 px-4 py-2 rounded-full font-semibold transition-all duration-200"
-              style={{
-                fontSize: "0.78rem",
-                background: category === c.value ? "var(--violet-mid)" : "#fff",
-                color: category === c.value ? "#fff" : "var(--text-2)",
-                border: `1.5px solid ${category === c.value ? "var(--violet-mid)" : "var(--border)"}`,
-                boxShadow: category === c.value ? "var(--shadow-v)" : "none",
-              }}
-            >
-              {c.value !== "all" && <span>{CAT_ICONS[c.value]}</span>}
-              {c.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Results */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-                <div className="skeleton" style={{ height: 168 }} />
-                <div className="p-5 space-y-3" style={{ background: "#fff" }}>
-                  <div className="skeleton h-5 w-3/4" />
-                  <div className="skeleton h-4 w-full" />
-                  <div className="skeleton h-4 w-2/3" />
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i}>
+                <div className="skeleton" style={{ height: 186, borderRadius: 16 }} />
+                <div className="skeleton h-4 w-32 mt-3" />
+                <div className="skeleton h-5 w-full mt-2" />
+                <div className="skeleton h-4 w-2/3 mt-2" />
               </div>
             ))}
           </div>
         ) : events.length === 0 ? (
-          <div
-            className="text-center py-24 rounded-3xl"
-            style={{ background: "#fff", border: "1px solid var(--border)" }}
-          >
+          <div className="text-center py-24 rounded-3xl" style={{ background: "#fff", border: "1px solid var(--border)" }}>
             <div style={{ fontSize: "4rem", marginBottom: "1rem", opacity: 0.3 }}>🎪</div>
-            <h3 className="heading-2 mb-2" style={{ color: "var(--text-1)" }}>No events found</h3>
+            <h3 className="heading-2 mb-2" style={{ color: "var(--text-1)" }}>No events match those filters</h3>
             <p style={{ color: "var(--text-3)", marginBottom: "2rem", fontSize: "0.9rem" }}>
-              {search || category !== "all" ? "Try adjusting your search or category filter" : "Be the first to create an event on UEB"}
+              {activeFilters > 0 ? "Try widening the date, price or city filters." : "Be the first to create an event on UEB."}
             </p>
-            <div className="flex justify-center gap-3">
-              <Link href="/events/create" className="btn btn-primary">Create an Event</Link>
+            <div className="flex flex-wrap justify-center gap-3">
+              {activeFilters > 0 && <button onClick={resetAll} className="btn btn-primary">Clear all filters</button>}
+              <Link href="/events/create" className="btn btn-outline">Create an Event</Link>
               <button onClick={seedData} disabled={seeding} className="btn btn-outline" style={{ opacity: seeding ? 0.6 : 1 }}>
                 {seeding ? "Loading demo data…" : "Load Demo Events"}
               </button>
             </div>
           </div>
         ) : (
-          <>
-            <div className="flex items-center justify-between mb-5">
-              <p style={{ fontSize: "0.85rem", color: "var(--text-3)", fontWeight: 500 }}>
-                {events.length} event{events.length !== 1 ? "s" : ""} found
-              </p>
-              {events.length === 0 && (
-                <button onClick={seedData} disabled={seeding} className="btn btn-outline btn-sm">
-                  Load Demo Data
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {trimmed.map((ev, i) => (
+              <div key={ev.id} className="anim-fadeUp" style={{ animationDelay: `${Math.min(i, 10) * 0.04}s` }}>
+                <EventCard event={ev} onOpen={setOpenSlug} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Nearby/trending rail */}
+        {!loading && events.length > 0 && (
+          <div className="mt-12">
+            <h3 className="heading-2 mb-4" style={{ color: "var(--text-1)" }}>More events you might like</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {nearby.map((ev) => (
+                <button
+                  key={`near-${ev.id}`}
+                  onClick={() => setOpenSlug(ev.slug)}
+                  className="text-left p-3.5 rounded-2xl transition-all"
+                  style={{ background: "#fff", border: "1px solid var(--border)" }}
+                >
+                  <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--violet-mid)" }}>
+                    {eventDateShort(ev.nextSessionDate ?? ev.startDate)}
+                  </p>
+                  <p className="truncate-2" style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-1)", lineHeight: 1.35, marginTop: "0.15rem" }}>
+                    {ev.title}
+                  </p>
+                  <p style={{ fontSize: "0.74rem", color: "var(--text-3)", marginTop: "0.25rem" }}>
+                    {ev.format === "online" ? "Online event" : ev.city ?? "Nigeria"}
+                  </p>
                 </button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {events.map((ev, i) => (
-                <div key={ev.id} className="anim-fadeUp" style={{ animationDelay: `${i * 0.06}s` }}>
-                  <EventCard event={ev} />
-                </div>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
+
+      {openSlug && (
+        <EventDetailsModal
+          slug={openSlug}
+          initial={events.find((e) => e.slug === openSlug)}
+          onClose={() => setOpenSlug(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FilterSelect({
+  icon, value, onChange, options,
+}: {
+  icon: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const active = value !== "all" && value !== "any";
+  return (
+    <div className="relative">
+      <select
+        className="input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          fontSize: "0.78rem",
+          padding: "0.5rem 0.75rem 0.5rem 2rem",
+          width: "auto",
+          cursor: "pointer",
+          background: active ? "var(--violet-bg)" : "#fff",
+          borderColor: active ? "var(--violet-rim)" : "var(--border)",
+          color: active ? "var(--violet-low)" : "var(--text-2)",
+          fontWeight: 600,
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", fontSize: "0.8rem", pointerEvents: "none" }}>{icon}</span>
     </div>
   );
 }

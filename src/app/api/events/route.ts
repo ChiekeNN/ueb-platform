@@ -4,31 +4,84 @@ import {
   events,
   ticketTiers,
   users,
+  organisations,
   eventSlots,
   eventOccurrences,
   seatingSections,
   seats,
   type RecurrenceRule,
 } from "@/db/schema";
-import { eq, desc, ilike, or, sql } from "drizzle-orm";
+import { eq, desc, asc, ilike, or, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { expandRecurrence, expandSlots, seatLabels, slugify } from "@/lib/utils";
 import { nanoid } from "nanoid";
 
+/** GET /api/events — discovery feed with Eventbrite-style facets. */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const status = searchParams.get("status") ?? "published";
+    const city = searchParams.get("city");
+    const format = searchParams.get("format");
+    const price = searchParams.get("price");            // any | free | paid
+    const when = searchParams.get("when");              // today | tomorrow | weekend | week | month
+    const sort = searchParams.get("sort") ?? "date";    // date | newest
+    const limit = Math.min(parseInt(searchParams.get("limit") ?? "60", 10) || 60, 120);
+    const withTiers = searchParams.get("tiers") === "1";
 
-    const query = db
+    const conditions = [];
+    if (status !== "all") {
+      conditions.push(eq(events.status, status as "published" | "draft" | "cancelled" | "completed"));
+      conditions.push(eq(events.listed, true));
+    }
+    if (category && category !== "all") conditions.push(eq(events.category, category as typeof events.category._.data));
+    if (city && city !== "all") conditions.push(ilike(events.city, `%${city}%`));
+    if (format && format !== "all") conditions.push(eq(events.format, format));
+    if (search) {
+      conditions.push(or(ilike(events.title, `%${search}%`), ilike(events.city, `%${search}%`), ilike(events.venue, `%${search}%`)));
+    }
+
+    // Date window
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    if (when && when !== "any") {
+      if (when === "today") {
+        const end = new Date(startOfToday); end.setHours(23, 59, 59, 999);
+        conditions.push(gte(events.startDate, startOfToday), lte(events.startDate, end));
+      } else if (when === "tomorrow") {
+        const start = new Date(startOfToday); start.setDate(start.getDate() + 1);
+        const end = new Date(start); end.setHours(23, 59, 59, 999);
+        conditions.push(gte(events.startDate, start), lte(events.startDate, end));
+      } else if (when === "weekend") {
+        const day = startOfToday.getDay();
+        const saturday = new Date(startOfToday);
+        saturday.setDate(saturday.getDate() + ((6 - day + 7) % 7 || 7));
+        const end = new Date(saturday); end.setDate(end.getDate() + 2); end.setHours(0, 0, 0, 0);
+        conditions.push(gte(events.startDate, saturday), lte(events.startDate, end));
+      } else if (when === "week") {
+        const end = new Date(startOfToday); end.setDate(end.getDate() + 7);
+        conditions.push(gte(events.startDate, startOfToday), lte(events.startDate, end));
+      } else if (when === "month") {
+        const end = new Date(startOfToday); end.setDate(end.getDate() + 31);
+        conditions.push(gte(events.startDate, startOfToday), lte(events.startDate, end));
+      }
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const order = sort === "newest" ? desc(events.createdAt) : asc(events.startDate);
+
+    const rows = await db
       .select({
         id: events.id,
         title: events.title,
+        tagline: events.tagline,
         slug: events.slug,
         description: events.description,
         category: events.category,
         type: events.type,
+        format: events.format,
         status: events.status,
         startDate: events.startDate,
         endDate: events.endDate,
@@ -42,21 +95,65 @@ export async function GET(req: NextRequest) {
         totalCheckins: events.totalCheckins,
         totalRevenue: events.totalRevenue,
         requiresApproval: events.requiresApproval,
+        soldOut: events.soldOut,
         organiserId: events.organiserId,
+        organisationId: events.organisationId,
         createdAt: events.createdAt,
+        organiserName: users.name,
+        organiserOrg: organisations.name,
+        organiserFollowers: organisations.followers,
+        organiserLogo: organisations.logo,
       })
-      .from(events);
+      .from(events)
+      .leftJoin(users, eq(events.organiserId, users.id))
+      .leftJoin(organisations, eq(events.organisationId, organisations.id))
+      .where(where)
+      .orderBy(order)
+      .limit(limit);
 
-    const conditions = [];
-    if (status !== "all") conditions.push(eq(events.status, status as "published" | "draft" | "cancelled" | "completed"));
-    if (category && category !== "all") conditions.push(eq(events.category, category as typeof events.category._.data));
-    if (search) conditions.push(or(ilike(events.title, `%${search}%`), ilike(events.city, `%${search}%`)));
+    if (!withTiers) {
+      return NextResponse.json({ events: rows, count: rows.length });
+    }
 
-    const result = conditions.length > 0
-      ? await query.where(sql`${conditions.reduce((a, b) => sql`${a} AND ${b}`)}` ).orderBy(desc(events.createdAt))
-      : await query.orderBy(desc(events.createdAt));
+    // Attach ticket tiers + upcoming sessions so cards can render price labels,
+    // "Free / From ₦X" and "+N more" without an extra round-trip per card.
+    const ids = rows.map((r) => r.id);
+    const [tiers, slots, occurrences] = await Promise.all([
+      ids.length ? db.select().from(ticketTiers).where(inArray(ticketTiers.eventId, ids)) : Promise.resolve([]),
+      ids.length ? db.select().from(eventSlots).where(inArray(eventSlots.eventId, ids)) : Promise.resolve([]),
+      ids.length ? db.select().from(eventOccurrences).where(inArray(eventOccurrences.eventId, ids)) : Promise.resolve([]),
+    ]);
 
-    return NextResponse.json({ events: result });
+    const nowMs = now.getTime();
+    const enriched = rows.map((r) => {
+      const eventTiers = tiers.filter((t) => t.eventId === r.id);
+      const openSlots = slots
+        .filter((s) => s.eventId === r.id && s.isActive && new Date(s.startDate).getTime() >= nowMs)
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      const sessions = occurrences
+        .filter((o) => o.eventId === r.id && new Date(o.startDate).getTime() >= nowMs)
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+      return {
+        ...r,
+        tiers: eventTiers.map((t) => ({
+          id: t.id,
+          name: t.name,
+          price: t.price,
+          type: t.type,
+          quantity: t.quantity,
+          quantitySold: t.quantitySold,
+          isInvitationOnly: t.isInvitationOnly,
+          groupSize: t.groupSize,
+        })),
+        nextSessionDate: openSlots[0]?.startDate ?? sessions[0]?.startDate ?? r.startDate,
+        sessionCount: openSlots.length || sessions.length,
+        timeSlotCount: openSlots.length,
+        priceFilter: price,
+      };
+    });
+
+    return NextResponse.json({ events: enriched, count: enriched.length });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
