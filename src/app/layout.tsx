@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -35,7 +36,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Footer />
+      </body>
     </html>
   );
 }
