@@ -135,7 +135,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     }
   };
 
-  const tiers = detail?.tiers ?? [];
+  const tiers = useMemo(() => detail?.tiers ?? [], [detail?.tiers]);
   const price = useMemo(() => priceSummaryLabel(tiers.map((t) => ({ price: t.price, type: t.type }))), [tiers]);
   const cartTotal = useMemo(
     () => tiers.reduce((sum, t) => sum + (qty[t.id] ?? 0) * parseFloat(String(t.price ?? 0)), 0),

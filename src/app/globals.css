@@ -393,6 +393,11 @@ body {
   box-shadow: var(--shadow-lg);
   transform: translateY(-4px);
 }
+.operation-card:hover {
+  border-color: var(--violet-rim) !important;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
 
 .footer-link:hover { color: #fff !important; }
 

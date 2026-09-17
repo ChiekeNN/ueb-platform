@@ -83,6 +83,105 @@ const CAPABILITIES = [
   },
 ];
 
+const ORGANISER_ACTIVITIES = [
+  {
+    label: "Create an invitation",
+    description: "Start with a polished invite and access rules for the right audience.",
+    group: "Plan",
+    color: "var(--violet-mid)",
+  },
+  {
+    label: "Share a registration form",
+    description: "Collect applications from a branded event page or a private link.",
+    group: "Plan",
+    color: "var(--violet-mid)",
+  },
+  {
+    label: "Receive applications",
+    description: "Keep every response, guest detail and custom answer in one inbox.",
+    group: "Plan",
+    color: "var(--violet-mid)",
+  },
+  {
+    label: "Review attendees",
+    description: "Filter the roster by status, ticket, group, slot or invite.",
+    group: "Decide",
+    color: "#0891B2",
+  },
+  {
+    label: "Approve or reject applicants",
+    description: "Move guests through a clear approval queue before a ticket is issued.",
+    group: "Decide",
+    color: "#0891B2",
+  },
+  {
+    label: "Collect payments",
+    description: "Track free, paid and pending settlements with the fee breakdown included.",
+    group: "Decide",
+    color: "#0891B2",
+  },
+  {
+    label: "Confirm attendance",
+    description: "Know who is coming and follow up with guests before the doors open.",
+    group: "Ready",
+    color: "var(--green)",
+  },
+  {
+    label: "Generate tickets",
+    description: "Issue a unique digital pass with a QR code for every approved guest.",
+    group: "Ready",
+    color: "var(--green)",
+  },
+  {
+    label: "Send tickets",
+    description: "Keep delivery and ticket status tied to each attendee record.",
+    group: "Ready",
+    color: "var(--green)",
+  },
+  {
+    label: "Print guest lists",
+    description: "Export a clean roster for venue teams and offline contingency use.",
+    group: "On the day",
+    color: "#B45309",
+  },
+  {
+    label: "Verify attendees at the entrance",
+    description: "Scan QR codes or search ticket numbers with duplicate detection built in.",
+    group: "On the day",
+    color: "#B45309",
+  },
+  {
+    label: "Track attendance",
+    description: "Watch live check-ins, no-shows and attendance rate as the event unfolds.",
+    group: "On the day",
+    color: "#B45309",
+  },
+  {
+    label: "Manage VIPs",
+    description: "Reserve VIP tiers, invite codes and priority access without extra spreadsheets.",
+    group: "On the day",
+    color: "#B45309",
+  },
+  {
+    label: "Manage seating",
+    description: "Build sections, assign seats and hold inventory from the same workspace.",
+    group: "On the day",
+    color: "#B45309",
+  },
+  {
+    label: "Manage vendors",
+    description: "Track exhibitors, stalls, fees, payment status and event-day contacts.",
+    group: "Close",
+    color: "#7C3AED",
+  },
+  {
+    label: "Prepare a final report",
+    description: "Export sales, attendance, feedback and vendor outcomes when it is over.",
+    group: "Close",
+    color: "#7C3AED",
+  },
+];
+
 const FEATURES = [
   {
     icon: "🗓️",
@@ -393,6 +492,59 @@ export default async function HomePage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── ORGANISER OPERATIONS ────────────────────────────── */}
+      <section id="organiser-operations" className="py-24 max-w-7xl mx-auto px-5 sm:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] gap-12 items-start">
+          <div className="lg:sticky lg:top-28">
+            <p className="label-caps mb-3" style={{ color: "var(--violet-mid)" }}>For event organisers</p>
+            <h2 className="display-2" style={{ color: "var(--text-1)" }}>
+              From first invite<br />
+              <span className="text-grad-ink">to final report.</span>
+            </h2>
+            <p className="mt-5" style={{ color: "var(--text-3)", maxWidth: 430, fontSize: "1rem", lineHeight: 1.75 }}>
+              Every operational handoff lives in the same workspace. No more stitching together forms, spreadsheets, payment updates and printed lists to run one event.
+            </p>
+            <Link href="/events/create" className="btn btn-primary mt-7">
+              Put an event in motion →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {ORGANISER_ACTIVITIES.map((activity, i) => (
+              <div
+                key={activity.label}
+                className="group operation-card flex gap-3.5 p-4 rounded-2xl border transition-all duration-300 anim-fadeUp"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "#fff",
+                  animationDelay: `${i * 0.04}s`,
+                }}
+              >
+                <div
+                  className="flex items-center justify-center shrink-0 w-8 h-8 rounded-lg font-black"
+                  style={{ background: `color-mix(in srgb, ${activity.color} 12%, transparent)`, color: activity.color, fontSize: "0.72rem" }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold" style={{ color: "var(--text-1)", fontSize: "0.87rem", lineHeight: 1.3 }}>
+                      {activity.label}
+                    </h3>
+                    <span className="label-caps" style={{ color: activity.color, fontSize: "0.56rem", letterSpacing: "0.08em" }}>
+                      {activity.group}
+                    </span>
+                  </div>
+                  <p className="mt-1" style={{ color: "var(--text-3)", fontSize: "0.74rem", lineHeight: 1.5 }}>
+                    {activity.description}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
