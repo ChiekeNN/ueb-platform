@@ -21,6 +21,7 @@ import { eq } from "drizzle-orm";
 import { expandRecurrence, expandSlots, generatePaymentReference, generateTicketNumber, seatLabels, slugify } from "@/lib/utils";
 import { nanoid } from "nanoid";
 import QRCode from "qrcode";
+import { hashPassword } from "@/lib/auth";
 
 export async function POST(_req: NextRequest) {
   try {
@@ -29,13 +30,21 @@ export async function POST(_req: NextRequest) {
     let adminUser;
     if (existingUsers.length === 0) {
       [adminUser] = await db.insert(users).values([
-        { name: "UEB Admin", email: "admin@ueb.ng", role: "platform_admin", organisation: "Unique Events Booking" },
-        { name: "Chidi Okonkwo", email: "chidi@upec.edu.ng", role: "event_owner", organisation: "UPEC University" },
-        { name: "Amara Nwosu", email: "amara@abccorp.ng", role: "event_owner", organisation: "ABC Corporation" },
+        { name: "UEB Admin", email: "admin@ueb.ng", passwordHash: await hashPassword("admin1234"), role: "platform_admin", accountStatus: "approved", organisation: "Unique Events Booking" },
+        { name: "Chidi Okonkwo", email: "chidi@upec.edu.ng", passwordHash: await hashPassword("organizer1234"), role: "event_owner", accountStatus: "approved", organisation: "UPEC University" },
+        { name: "Amara Nwosu", email: "amara@abccorp.ng", passwordHash: await hashPassword("organizer1234"), role: "event_owner", accountStatus: "approved", organisation: "ABC Corporation" },
+        { name: "UEB Subscriber", email: "subscriber@ueb.ng", passwordHash: await hashPassword("subscriber1234"), role: "attendee", accountStatus: "approved" },
       ]).returning();
     } else {
       adminUser = existingUsers[0];
     }
+
+    // Keep the preview accounts usable after a database has already been seeded.
+    await db.update(users).set({ passwordHash: await hashPassword("admin1234"), accountStatus: "approved" }).where(eq(users.email, "admin@ueb.ng"));
+    await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "chidi@upec.edu.ng"));
+    await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "amara@abccorp.ng"));
+    const [subscriberUser] = await db.select().from(users).where(eq(users.email, "subscriber@ueb.ng")).limit(1);
+    if (!subscriberUser) await db.insert(users).values({ name: "UEB Subscriber", email: "subscriber@ueb.ng", passwordHash: await hashPassword("subscriber1234"), role: "attendee", accountStatus: "approved" });
 
     /* ── Organisations (the "By …" card on every event page) ── */
     const orgSeeds = [

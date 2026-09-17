@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { EVENT_CATEGORIES, BANNER_COLORS, calculateUEBFee, formatCurrency } from "@/lib/utils";
@@ -52,6 +52,17 @@ export default function CreateEventPage() {
   const [error, setError] = useState("");
   const [poster, setPoster] = useState<{ url: string; name: string } | null>(null);
   const [posterError, setPosterError] = useState("");
+  const [access, setAccess] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((response) => response.json())
+      .then((data) => {
+        const session = data.session;
+        setAccess(Boolean(data.authenticated && session && session.accountStatus === "approved" && ["platform_admin", "org_admin", "event_owner"].includes(session.role)));
+      })
+      .catch(() => setAccess(false));
+  }, []);
 
   const [form, setForm] = useState({
     title: "", description: "", category: "conference", type: "standard",
@@ -179,6 +190,26 @@ export default function CreateEventPage() {
   const hasPaid = tiers.some(t => t.type !== "free" && parseFloat(t.price || "0") > 0);
   const eg = parseFloat(tiers.find(t => t.type !== "free")?.price || "0");
   const fee = calculateUEBFee(eg);
+
+  if (access === null) {
+    return <><Navbar /><main className="max-w-3xl mx-auto px-5 pt-32 pb-20 text-center"><div className="skeleton h-40 rounded-3xl" /></main></>;
+  }
+
+  if (!access) {
+    return (
+      <div style={{ minHeight: "100dvh", background: "var(--surface)" }}>
+        <Navbar />
+        <main className="max-w-2xl mx-auto px-5 sm:px-8 pt-32 pb-20 text-center">
+          <div className="card p-8 sm:p-12">
+            <div style={{ fontSize: "3rem" }}>🔒</div>
+            <h1 className="display-2 mt-4" style={{ color: "var(--text-1)", fontSize: "clamp(2rem, 5vw, 3.4rem)" }}>Create Event is restricted</h1>
+            <p className="mt-4" style={{ color: "var(--text-3)", lineHeight: 1.7 }}>Only approved event organisers and authenticated admins can publish events. Sign in with an approved account or request organiser access.</p>
+            <div className="flex flex-wrap justify-center gap-3 mt-7"><a href="/login" className="btn btn-primary">Sign in</a><a href="/organizer/signup" className="btn btn-outline">Request organiser access</a></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>

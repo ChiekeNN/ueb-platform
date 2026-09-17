@@ -31,6 +31,7 @@ Create a file named `.env` in the repository root (the same folder as `package.j
 
 ```bash
 DATABASE_URL='postgresql://YOUR_USER:YOUR_PASSWORD@YOUR_HOST/YOUR_DATABASE?sslmode=require'
+AUTH_SECRET='replace-with-a-long-random-secret'
 ```
 
 Do not commit `.env` or paste the password into chat. This repository already ignores `.env` files.
@@ -57,9 +58,17 @@ curl -X POST http://localhost:3000/api/seed
 
 Then open `http://localhost:3000/events` and refresh the page. This creates the showcase events plus at least six UEB-owned events in every category.
 
-You can also use **Seed database** from the organiser dashboard after the database is configured.
+You can also use **Seed database** from the organiser dashboard after the database is configured. The seed creates these preview accounts:
 
-For a deployed app, add the same `DATABASE_URL` value to the hosting provider's environment variables, redeploy, and call `/api/seed` on the deployed URL instead of `localhost`. Never commit the connection string.
+- Admin: `admin@ueb.ng` / `admin1234`
+- Approved organiser: `chidi@upec.edu.ng` / `organizer1234`
+- Subscriber: `subscriber@ueb.ng` / `subscriber1234`
+
+### Access control
+
+Signups are available at `/organizer/signup`, `/subscriber/signup`, and `/admin/signup`. Subscriber accounts are active immediately. Organiser and admin requests begin as `pending`; an authenticated admin approves or rejects organiser requests from `/admin`. Only an authenticated admin or approved organiser can create an event. The same rule is enforced in `POST /api/events`, so hiding a button is not the security boundary.
+
+For a deployed app, add the same `DATABASE_URL` and a strong `AUTH_SECRET` value to the hosting provider's environment variables, redeploy, and call `/api/seed` on the deployed URL instead of `localhost`. Never commit the connection string or secret.
 
 ## Product surfaces
 

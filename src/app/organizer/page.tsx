@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
+import CreateEventLink from "@/components/CreateEventLink";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 type OrganizerEvent = {
@@ -39,7 +40,7 @@ export default function OrganizerPage() {
               <p className="mt-3" style={{ color: "rgba(255,255,255,0.68)", maxWidth: 580, lineHeight: 1.7 }}>Create, publish, review, sell and report without leaving UEB.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/events/create" className="btn btn-white btn-sm">+ Create event</Link>
+              <CreateEventLink href="/events/create" className="btn btn-white btn-sm">+ Create event</CreateEventLink>
               <Link href="/dashboard" className="btn btn-ghost btn-sm">Full operations dashboard</Link>
             </div>
           </div>
@@ -69,7 +70,7 @@ export default function OrganizerPage() {
                 <h2 className="heading-2" style={{ color: "var(--text-1)", fontSize: "1.25rem" }}>Upcoming events</h2>
                 <p className="mt-1" style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>Keep your next event moving forward.</p>
               </div>
-              <Link href="/events/create" className="btn btn-primary btn-sm">Create new</Link>
+              <CreateEventLink href="/events/create" className="btn btn-primary btn-sm">Create new</CreateEventLink>
             </div>
             {loading ? <div className="skeleton h-48 rounded-2xl" /> : upcoming.length === 0 ? (
               <div className="text-center py-12">

@@ -19,12 +19,15 @@ export default function LoginPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {ROLES.map((role) => (
-            <Link key={role.href} href={role.href} className="card card-lift p-6" style={{ textDecoration: "none" }}>
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-5" style={{ background: role.tone }}>{role.icon}</div>
-              <h2 className="heading-2" style={{ color: "var(--text-1)", fontSize: "1.2rem" }}>{role.label}</h2>
-              <p className="mt-2" style={{ color: "var(--text-3)", fontSize: "0.84rem", lineHeight: 1.65 }}>{role.description}</p>
-              <span className="inline-flex mt-6" style={{ color: "var(--violet-mid)", fontWeight: 800, fontSize: "0.82rem" }}>Sign in →</span>
-            </Link>
+            <div key={role.href} className="card card-lift p-6">
+              <Link href={role.href} style={{ textDecoration: "none" }}>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-5" style={{ background: role.tone }}>{role.icon}</div>
+                <h2 className="heading-2" style={{ color: "var(--text-1)", fontSize: "1.2rem" }}>{role.label}</h2>
+                <p className="mt-2" style={{ color: "var(--text-3)", fontSize: "0.84rem", lineHeight: 1.65 }}>{role.description}</p>
+                <span className="inline-flex mt-6" style={{ color: "var(--violet-mid)", fontWeight: 800, fontSize: "0.82rem" }}>Sign in →</span>
+              </Link>
+              <Link href={role.href.replace("/login", "/signup")} className="inline-flex mt-3" style={{ color: "var(--text-3)", fontSize: "0.72rem", fontWeight: 700 }}>Need an account? Sign up</Link>
+            </div>
           ))}
         </div>
       </main>

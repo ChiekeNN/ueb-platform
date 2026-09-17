@@ -14,6 +14,7 @@ import {
 import { eq, desc, asc, ilike, or, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { expandRecurrence, expandSlots, seatLabels, slugify } from "@/lib/utils";
 import { filterDemoEvents } from "@/lib/demo-events";
+import { canCreateEvents, getCurrentUser, type AuthRole } from "@/lib/auth";
 import { nanoid } from "nanoid";
 
 /** GET /api/events — discovery feed with Eventbrite-style facets. */
@@ -178,25 +179,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Sign in as an approved event organiser before creating an event" }, { status: 401 });
+    if (!canCreateEvents({ role: user.role as AuthRole, accountStatus: user.accountStatus as "pending" | "approved" | "rejected" | "suspended" })) return NextResponse.json({ error: "Only approved event organisers and admins can create events" }, { status: 403 });
+
     const body = await req.json();
-
-    // Ensure organiser exists or create a demo one
-    let organiserId = body.organiserId;
-    if (!organiserId) {
-      const existing = await db.select().from(users).where(eq(users.email, "demo@ueb.ng")).limit(1);
-      if (existing.length > 0) {
-        organiserId = existing[0].id;
-      } else {
-        const [newUser] = await db.insert(users).values({
-          name: "Demo Organiser",
-          email: "demo@ueb.ng",
-          role: "event_owner",
-          organisation: "UEB Demo",
-        }).returning();
-        organiserId = newUser.id;
-      }
-    }
-
+    const organiserId = user.id;
     const slug = slugify(body.title) + "-" + nanoid(6);
 
     const recurrenceRule: RecurrenceRule | null = body.recurrenceRule ?? null;

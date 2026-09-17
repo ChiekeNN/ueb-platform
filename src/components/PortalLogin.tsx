@@ -45,14 +45,23 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
   const [email, setEmail] = useState(demoAccount.email);
   const [password, setPassword] = useState(demoAccount.password);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const signIn = (event: FormEvent) => {
+  const signIn = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
-    // This keeps the portal usable for product demos while real auth is wired
-    // to Supabase Auth or the production identity provider.
-    window.localStorage.setItem("ueb.session", JSON.stringify({ role, email: email || `demo@${role}.ueb.ng`, signedInAt: new Date().toISOString() }));
-    window.setTimeout(() => window.location.assign(portal.destination), 250);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to sign in");
+      window.localStorage.setItem("ueb.session", JSON.stringify({ role, email: data.user.email, status: data.user.accountStatus, signedInAt: new Date().toISOString() }));
+      window.dispatchEvent(new Event("ueb:session-changed"));
+      window.location.assign(portal.destination);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to sign in");
+      setBusy(false);
+    }
   };
 
   return (
@@ -82,6 +91,7 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-5" style={{ background: `${portal.accent}18` }}>{portal.icon}</div>
             <h2 className="heading-2" style={{ color: "var(--text-1)" }}>Sign in to UEB</h2>
             <p className="mt-1 mb-4" style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Use your email and password to continue.</p>
+            {error && <div className="mb-4 p-3 rounded-xl" style={{ background: "#FEE2E2", color: "#991B1B", fontSize: "0.78rem", lineHeight: 1.5 }}>{error}</div>}
             <div className="p-3 rounded-xl mb-5" style={{ background: "var(--violet-bg)", border: "1px solid var(--violet-rim)" }}>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -98,13 +108,13 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
             </label>
             <label className="block mb-5">
               <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-2)", marginBottom: "0.4rem" }}>Password</span>
-              <input className="input" type="password" required minLength={4} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
+              <input className="input" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
             </label>
             <button type="submit" className="btn btn-primary w-full justify-center" disabled={busy} style={{ opacity: busy ? 0.65 : 1 }}>
               {busy ? "Opening workspace…" : `Continue as ${portal.label}`}
             </button>
             <p className="text-center mt-5" style={{ fontSize: "0.72rem", color: "var(--text-3)", lineHeight: 1.6 }}>
-              Demo access is enabled for this preview. Production authentication can be connected to Supabase Auth without changing the portal screens.
+              Need an account? <Link href={`/${role === "organizer" ? "organizer" : role}/signup`} style={{ color: "var(--violet-mid)", fontWeight: 800 }}>Create one here</Link>.
             </p>
           </form>
         </div>

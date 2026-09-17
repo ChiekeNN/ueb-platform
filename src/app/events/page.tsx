@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
+import CreateEventLink from "@/components/CreateEventLink";
 import EventCard, { type EventCardData } from "@/components/EventCard";
 import EventDetailsModal from "@/components/EventDetailsModal";
 import { EVENT_CATEGORIES, EVENT_FORMATS, eventDateShort } from "@/lib/utils";
@@ -158,7 +159,7 @@ export default function EventsPage() {
                 <option value="date">Date</option>
                 <option value="newest">Newest</option>
               </select>
-              <Link href="/events/create" className="btn btn-primary btn-sm" style={{ whiteSpace: "nowrap" }}>+ Create</Link>
+              <CreateEventLink href="/events/create" className="btn btn-primary btn-sm" style={{ whiteSpace: "nowrap" }}>+ Create</CreateEventLink>
             </div>
           </div>
 
@@ -235,7 +236,7 @@ export default function EventsPage() {
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               {activeFilters > 0 && <button onClick={resetAll} className="btn btn-primary">Clear all filters</button>}
-              <Link href="/events/create" className="btn btn-outline">Create an Event</Link>
+              <CreateEventLink href="/events/create" className="btn btn-outline">Create an Event</CreateEventLink>
               <button onClick={seedData} disabled={seeding} className="btn btn-outline" style={{ opacity: seeding ? 0.6 : 1 }}>
                 {seeding ? "Loading demo data…" : "Load Demo Events"}
               </button>

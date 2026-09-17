@@ -1,5 +1,6 @@
 "use client";
 import Navbar from "@/components/Navbar";
+import CreateEventLink from "@/components/CreateEventLink";
 import Link from "next/link";
 
 const FREE_FEATURES = [
@@ -144,7 +145,7 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/events/create" className="btn btn-dark w-full justify-center">Get Started Free</Link>
+            <CreateEventLink href="/events/create" className="btn btn-dark w-full justify-center">Get Started Free</CreateEventLink>
           </div>
 
           {/* Transaction */}
@@ -174,9 +175,9 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/events/create" className="btn btn-white w-full justify-center" style={{ color:"var(--violet-low)", fontWeight:800 }}>
+            <CreateEventLink href="/events/create" className="btn btn-white w-full justify-center" style={{ color:"var(--violet-low)", fontWeight:800 }}>
               Start Selling Tickets
-            </Link>
+            </CreateEventLink>
           </div>
 
           {/* Enterprise */}
@@ -350,7 +351,7 @@ export default function PricingPage() {
             Create your first event for free today. No credit card required. No monthly commitment.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/events/create" className="btn btn-primary btn-lg">Create Your Event →</Link>
+            <CreateEventLink href="/events/create" className="btn btn-primary btn-lg">Create Your Event →</CreateEventLink>
             <Link href="/events" className="btn btn-outline btn-lg">Explore Events</Link>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
+import CreateEventLink from "@/components/CreateEventLink";
 import Link from "next/link";
 import { formatCurrency, formatDate, getStatusColor, EVENT_CATEGORIES } from "@/lib/utils";
 
@@ -145,7 +146,7 @@ export default function DashboardPage() {
                   {seeding ? "Setting up…" : demoMode ? "Seed database" : "Load Demo Data"}
                 </button>
               )}
-              <Link href="/events/create" className="btn btn-primary">+ Create Event</Link>
+              <CreateEventLink href="/events/create" className="btn btn-primary">+ Create Event</CreateEventLink>
             </div>
           </div>
         </div>
@@ -165,7 +166,7 @@ export default function DashboardPage() {
             <h3 className="heading-2 mb-2" style={{ color:"var(--text-1)" }}>No events yet</h3>
             <p style={{ color:"var(--text-3)", marginBottom:"2rem", fontSize:"0.9rem" }}>Create your first event or load demo data to explore the dashboard</p>
             <div className="flex justify-center gap-3">
-              <Link href="/events/create" className="btn btn-primary">Create Event</Link>
+              <CreateEventLink href="/events/create" className="btn btn-primary">Create Event</CreateEventLink>
               <button onClick={seed} disabled={seeding} className="btn btn-outline" style={{ opacity:seeding?0.6:1 }}>
                 {seeding?"Loading…":"Load Demo Data"}
               </button>
@@ -352,7 +353,7 @@ export default function DashboardPage() {
                   <Link href={`/events/${sel.slug}/manage`} className="btn btn-dark justify-center" style={{ fontSize:"0.85rem" }}>⚙ Manage</Link>
                   <Link href={`/events/${sel.slug}/report`} className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>🧾 Report</Link>
                   <Link href={`/checkin?event=${sel.id}&slug=${sel.slug}`} className="btn btn-primary justify-center" style={{ fontSize:"0.85rem" }}>📱 Check-In</Link>
-                  <Link href="/events/create" className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>＋ New Event</Link>
+                  <CreateEventLink href="/events/create" className="btn btn-outline justify-center" style={{ fontSize:"0.85rem" }}>＋ New Event</CreateEventLink>
                 </div>
               </div>
             )}

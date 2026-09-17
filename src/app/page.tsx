@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import CreateEventLink from "@/components/CreateEventLink";
 import { db } from "@/db";
 import { events, registrations, ticketTiers } from "@/db/schema";
 import { eq, sql, asc, inArray, and, gte } from "drizzle-orm";
@@ -416,10 +417,10 @@ export default async function HomePage() {
             </p>
 
             <div className="anim-fadeUp delay-3 flex flex-wrap justify-center gap-4 mb-14">
-              <Link href="/events/create" className="btn btn-white btn-lg">
+              <CreateEventLink href="/events/create" className="btn btn-white btn-lg">
                 Create Your Event
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </Link>
+              </CreateEventLink>
               <Link href="/events" className="btn btn-ghost btn-lg">
                 Explore Events
               </Link>
@@ -543,9 +544,9 @@ export default async function HomePage() {
             <p className="mt-5" style={{ color: "var(--text-3)", maxWidth: 430, fontSize: "1rem", lineHeight: 1.75 }}>
               Every operational handoff lives in the same workspace. No more stitching together forms, spreadsheets, payment updates and printed lists to run one event.
             </p>
-            <Link href="/events/create" className="btn btn-primary mt-7">
+            <CreateEventLink href="/events/create" className="btn btn-primary mt-7">
               Put an event in motion →
-            </Link>
+            </CreateEventLink>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -741,9 +742,9 @@ export default async function HomePage() {
               When you earn, we earn — that&apos;s the UEB promise.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/events/create" className="btn btn-primary btn-lg">
+              <CreateEventLink href="/events/create" className="btn btn-primary btn-lg">
                 Start for Free →
-              </Link>
+              </CreateEventLink>
               <Link href="/pricing" className="btn btn-outline btn-lg">
                 See Full Pricing
               </Link>

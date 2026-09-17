@@ -10,10 +10,13 @@ type AdminEvent = {
   startDate?: string | null; city?: string | null; venue?: string | null;
   totalRegistrations?: number | null; totalRevenue?: string | null;
 };
+type OrganizerRequest = { id: string; name: string; email: string; organisation?: string | null; createdAt: string | null };
 
 export default function AdminPage() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [organizerRequests, setOrganizerRequests] = useState<OrganizerRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [decisioning, setDecisioning] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/events?status=all&limit=120")
@@ -21,7 +24,24 @@ export default function AdminPage() {
       .then((data) => setEvents(data.events ?? []))
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
+    fetch("/api/admin/users")
+      .then((response) => response.ok ? response.json() : { users: [] })
+      .then((data) => setOrganizerRequests(data.users ?? []))
+      .catch(() => setOrganizerRequests([]));
   }, []);
+
+  const decideOrganizer = async (userId: string, accountStatus: "approved" | "rejected") => {
+    setDecisioning(userId);
+    try {
+      const response = await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, accountStatus }) });
+      if (!response.ok) throw new Error("Unable to update request");
+      setOrganizerRequests((requests) => requests.filter((request) => request.id !== userId));
+    } catch {
+      // Keep the request visible so the admin can retry.
+    } finally {
+      setDecisioning(null);
+    }
+  };
 
   const upcoming = useMemo(() => events.filter((event) => event.startDate && new Date(event.startDate) >= new Date()).sort((a, b) => new Date(a.startDate ?? 0).getTime() - new Date(b.startDate ?? 0).getTime()), [events]);
   const published = events.filter((event) => event.status === "published").length;
@@ -106,6 +126,30 @@ export default function AdminPage() {
             </div>
           </section>
         </div>
+
+        <section className="card p-5 sm:p-6 mt-5" id="organizer-approvals">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+            <div>
+              <p className="label-caps mb-2" style={{ color: "var(--violet-mid)" }}>Access control</p>
+              <h2 className="heading-2" style={{ color: "var(--text-1)", fontSize: "1.25rem" }}>Organiser approval requests</h2>
+              <p className="mt-1" style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>Approve trusted organisers before they can publish events.</p>
+            </div>
+            <span className="badge badge-violet">{organizerRequests.length} pending</span>
+          </div>
+          {organizerRequests.length === 0 ? (
+            <div className="rounded-2xl p-5" style={{ background: "var(--surface)", color: "var(--text-3)", fontSize: "0.82rem" }}>No pending organiser requests.</div>
+          ) : (
+            <div className="space-y-3">
+              {organizerRequests.map((request) => (
+                <div key={request.id} className="flex flex-wrap items-center gap-3 p-4 rounded-2xl" style={{ background: "var(--surface)" }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#ECFEFF", fontSize: "1.15rem" }}>🗓️</div>
+                  <div className="min-w-0 flex-1"><p className="font-bold" style={{ color: "var(--text-1)", fontSize: "0.86rem" }}>{request.name}</p><p style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>{request.email}{request.organisation ? ` · ${request.organisation}` : ""}</p></div>
+                  <div className="flex gap-2"><button className="btn btn-primary btn-sm" disabled={decisioning === request.id} onClick={() => decideOrganizer(request.id, "approved")}>Approve</button><button className="btn btn-outline btn-sm" disabled={decisioning === request.id} onClick={() => decideOrganizer(request.id, "rejected")}>Reject</button></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

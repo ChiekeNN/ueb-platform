@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CreateEventLink from "@/components/CreateEventLink";
 
 const FOOTER_COLUMNS = [
   {
@@ -65,7 +66,16 @@ export default function Footer() {
             <div key={column.heading}>
               <p className="label-caps mb-4" style={{ color: "rgba(255,255,255,0.3)" }}>{column.heading}</p>
               <div className="space-y-2.5">
-                {column.links.map(([label, href]) => (
+                {column.links.map(([label, href]) => label === "Create Event" ? (
+                  <CreateEventLink
+                    key={label}
+                    href={href}
+                    className="block transition-colors duration-200 footer-link"
+                    style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", fontWeight: 500 }}
+                  >
+                    {label}
+                  </CreateEventLink>
+                ) : (
                   <Link
                     key={label}
                     href={href}

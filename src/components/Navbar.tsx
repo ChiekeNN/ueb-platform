@@ -3,7 +3,11 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-type Session = { role?: string; email?: string };
+type Session = { role?: string; email?: string; status?: string };
+
+function canCreateEvents(session: Session | null) {
+  return !!session && (session.role === "admin" || (session.role === "organizer" && session.status === "approved"));
+}
 
 const NAV_LINKS = [
   { href: "/",         label: "Home" },
@@ -27,7 +31,25 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    const syncSession = () => {
+    const syncSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        const data = await response.json();
+        if (response.ok) {
+          if (data.authenticated && data.session) {
+            const role = data.session.role === "platform_admin" || data.session.role === "org_admin" ? "admin" : data.session.role === "event_owner" ? "organizer" : "subscriber";
+            const next = { role, email: data.session.email, status: data.session.accountStatus };
+            setSession(next);
+            window.localStorage.setItem("ueb.session", JSON.stringify(next));
+          } else {
+            setSession(null);
+            window.localStorage.removeItem("ueb.session");
+          }
+          return;
+        }
+      } catch {
+        // A temporary network failure should not break navigation.
+      }
       try {
         const raw = window.localStorage.getItem("ueb.session");
         setSession(raw ? JSON.parse(raw) as Session : null);
@@ -35,7 +57,7 @@ export default function Navbar() {
         setSession(null);
       }
     };
-    syncSession();
+    void syncSession();
     window.addEventListener("storage", syncSession);
     window.addEventListener("ueb:session-changed", syncSession);
     return () => {
@@ -47,6 +69,7 @@ export default function Navbar() {
   useEffect(() => { setOpen(false); }, [path]);
 
   const logout = () => {
+    void fetch("/api/auth/logout", { method: "POST" });
     window.localStorage.removeItem("ueb.session");
     window.dispatchEvent(new Event("ueb:session-changed"));
     setSession(null);
@@ -172,7 +195,7 @@ export default function Navbar() {
                 Sign in
               </Link>
             )}
-            <Link
+            {canCreateEvents(session) && <Link
               href="/events/create"
               className="hidden sm:flex btn btn-primary"
               style={{ padding: "0.55rem 1.25rem", fontSize: "0.85rem" }}
@@ -181,7 +204,7 @@ export default function Navbar() {
                 <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
               Create Event
-            </Link>
+            </Link>}
 
             {/* Mobile menu toggle */}
             <button
@@ -237,9 +260,9 @@ export default function Navbar() {
                   Sign in
                 </Link>
               )}
-              <Link href="/events/create" className="btn btn-primary w-full justify-center">
+              {canCreateEvents(session) && <Link href="/events/create" className="btn btn-primary w-full justify-center">
                 + Create Event
-              </Link>
+              </Link>}
             </div>
           </div>
         </div>
