@@ -32,6 +32,7 @@ type Detail = {
   tiers: RegTier[];
   stats: { totalRegistrations: number; approved: number; pending: number; checkedIn: number; totalRevenue: number };
   organiser: { name: string; email: string; organisation?: string | null } | null;
+  demo?: boolean;
   workspace?: {
     slots: RegSlot[];
     occurrences: { id: string; label?: string | null; startDate: string; endDate?: string | null }[];
@@ -181,6 +182,13 @@ export default function EventDetailsModal({
               </div>
 
               <div className="p-5 sm:p-7">
+                {detail?.demo && (
+                  <div className="mb-4 p-3 rounded-xl" style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                    <p style={{ fontSize: "0.78rem", color: "#92400E", lineHeight: 1.5 }}>
+                      You are viewing UEB&apos;s local demo catalogue. Connect PostgreSQL and run <strong>POST /api/seed</strong> to enable live registration, payment and ticket issuing.
+                    </p>
+                  </div>
+                )}
                 {registered && (
                   <div className="mb-4 p-3 rounded-xl flex items-center gap-2" style={{ background: "#D1FAE5", border: "1px solid #A7F3D0" }}>
                     <span>🎉</span>
@@ -253,10 +261,11 @@ export default function EventDetailsModal({
                   <div className="flex flex-wrap gap-2">
                     <button
                       className="btn btn-primary"
-                      style={{ padding: "0.7rem 1.4rem" }}
+                      style={{ padding: "0.7rem 1.4rem", opacity: detail?.demo ? 0.55 : 1, cursor: detail?.demo ? "not-allowed" : "pointer" }}
                       onClick={() => setRegisterOpen(true)}
+                      disabled={detail?.demo}
                     >
-                      {soldOut && event.waitlistEnabled ? "Join waitlist" : soldOut ? "Sold out" : "Get tickets"}
+                      {detail?.demo ? "Demo preview" : soldOut && event.waitlistEnabled ? "Join waitlist" : soldOut ? "Sold out" : "Get tickets"}
                     </button>
                     <Link href={`/events/${slug}`} className="btn btn-outline">Full details</Link>
                   </div>

@@ -56,6 +56,7 @@ export default function EventsPage() {
   const [price, setPrice] = useState("any");
   const [sort, setSort] = useState("date");
   const [seeding, setSeeding] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
@@ -69,6 +70,7 @@ export default function EventsPage() {
       if (search) p.set("search", search);
       const res = await fetch(`/api/events?${p}`);
       const data = await res.json();
+      setDemoMode(Boolean(data.demo));
       let list: Event[] = data.events ?? [];
       // Free/paid is a client-side refinement on the tier payload.
       if (price === "free") list = list.filter((e) => (e.tiers ?? []).some((t) => Number(t.price ?? 0) === 0));
@@ -203,6 +205,15 @@ export default function EventsPage() {
             </p>
           )}
         </div>
+
+        {demoMode && (
+          <div className="mb-6 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3" style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+            <p style={{ fontSize: "0.78rem", color: "#92400E", lineHeight: 1.5 }}>
+              Showing UEB&apos;s local demo catalogue. Connect PostgreSQL and run <strong>POST /api/seed</strong> to enable live registrations, payments and tickets.
+            </p>
+            <Link href="/dashboard" className="btn btn-sm" style={{ background: "#92400E", color: "#fff" }}>Open organiser dashboard</Link>
+          </div>
+        )}
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

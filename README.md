@@ -78,9 +78,13 @@ date, session and slot counts plus the organiser/org profile in one round trip.
 The demo catalogue is first-party UEB data: `POST /api/seed` creates at least six
 published events in every category, with local covers and UEB-owned registration,
 payment, ticket and check-in flows. Discovery cards link only to UEB event pages;
-there is no Eventbrite, Ticketmaster or other competitor handoff. Replace the
-catalogue seed records with organiser-created events as production data arrives,
-without changing the discovery API or card experience.
+there is no Eventbrite, Ticketmaster or other competitor handoff. If PostgreSQL is
+not connected yet, Home, Discover and the read-only event preview automatically
+serve the same 90-event UEB catalogue so the product can be previewed immediately.
+Connect the database and run the seed command to enable persistent registrations,
+payments and organiser management. Replace the catalogue seed records with
+organiser-created events as production data arrives, without changing the
+discovery API or card experience.
 
 ### Layout rule (important)
 

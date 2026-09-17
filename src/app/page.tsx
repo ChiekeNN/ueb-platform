@@ -5,14 +5,18 @@ import { events, registrations, ticketTiers } from "@/db/schema";
 import { eq, sql, desc, inArray } from "drizzle-orm";
 import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
+import { DEMO_EVENTS } from "@/lib/demo-events";
 
 async function getStats() {
   try {
     const [ev] = await db.select({ count: sql<number>`count(*)` }).from(events).where(eq(events.status, "published"));
     const [rg] = await db.select({ count: sql<number>`count(*)` }).from(registrations);
     const [rv] = await db.select({ total: sql<string>`COALESCE(SUM(amount_paid::numeric), 0)` }).from(registrations).where(eq(registrations.paymentStatus, "paid"));
-    return { events: Number(ev?.count ?? 0), registrations: Number(rg?.count ?? 0), revenue: parseFloat(rv?.total ?? "0") };
-  } catch { return { events: 0, registrations: 0, revenue: 0 }; }
+    const eventCount = Number(ev?.count ?? 0);
+    return { events: eventCount || DEMO_EVENTS.length, registrations: Number(rg?.count ?? 0), revenue: parseFloat(rv?.total ?? "0") };
+  } catch {
+    return { events: DEMO_EVENTS.length, registrations: 0, revenue: 0 };
+  }
 }
 
 async function getFeatured() {
@@ -37,6 +41,8 @@ async function getFeatured() {
       status: events.status,
     }).from(events).where(eq(events.status, "published")).orderBy(desc(events.createdAt)).limit(6);
 
+    if (rows.length === 0) return DEMO_EVENTS.slice(0, 6);
+
     const ids = rows.map((row) => row.id);
     const tiers = ids.length
       ? await db.select({ id: ticketTiers.id, eventId: ticketTiers.eventId, name: ticketTiers.name, price: ticketTiers.price, type: ticketTiers.type })
@@ -48,7 +54,9 @@ async function getFeatured() {
       ...row,
       tiers: tiers.filter((tier) => tier.eventId === row.id),
     }));
-  } catch { return []; }
+  } catch {
+    return DEMO_EVENTS.slice(0, 6);
+  }
 }
 
 const WORKFLOW = ["Create", "Publish", "Register", "Approve", "Pay", "Ticket", "Verify", "Attend", "Analyse", "Report"];

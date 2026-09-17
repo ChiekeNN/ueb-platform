@@ -16,6 +16,7 @@ import {
   waitlistEntries,
 } from "@/db/schema";
 import { asc, eq, sql } from "drizzle-orm";
+import { findDemoEvent } from "@/lib/demo-events";
 
 export async function GET(
   _req: NextRequest,
@@ -26,7 +27,7 @@ export async function GET(
 
     const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
     if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+      throw new Error("Event not found");
     }
 
     const tiers = await db.select().from(ticketTiers).where(eq(ticketTiers.eventId, event.id));
@@ -114,6 +115,46 @@ export async function GET(
 
     return NextResponse.json({ event, tiers, registrations: regs, organiser, stats, workspace });
   } catch (error) {
+    const { slug } = await params;
+    const demoEvent = findDemoEvent(slug);
+    if (demoEvent) {
+      return NextResponse.json({
+        event: demoEvent,
+        tiers: demoEvent.tiers,
+        registrations: [],
+        organiser: {
+          name: demoEvent.organiserName,
+          email: "hello@ueb.ng",
+          organisation: demoEvent.organiserOrg,
+        },
+        stats: {
+          totalRegistrations: 0,
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          onHold: 0,
+          checkedIn: 0,
+          noShows: 0,
+          unpaid: 0,
+          totalRevenue: 0,
+          attendanceRate: 0,
+        },
+        workspace: {
+          slots: [],
+          occurrences: [],
+          seating: { enabled: false, sections: [], summary: { totalSeats: 0, assigned: 0, available: 0 } },
+          vendors: [],
+          messages: [],
+          feedback: { responses: 0, averageRating: 0 },
+          payments: { transactions: 0, settled: 0, pending: 0, refunded: 0 },
+          waitlist: { count: 0, entries: [] },
+        },
+        demo: true,
+      });
+    }
+    if (error instanceof Error && error.message === "Event not found") {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch event" }, { status: 500 });
   }

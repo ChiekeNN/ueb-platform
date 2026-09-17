@@ -1,11 +1,10 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
-}
+// A missing DATABASE_URL should not take down the public discovery surfaces.
+// Routes can fall back to the first-party demo catalogue while organisers set
+// up PostgreSQL; write operations still return a clear database error.
+const databaseUrl = process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:1/ueb_unconfigured";
 
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;

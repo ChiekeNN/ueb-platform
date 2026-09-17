@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { eq, desc, asc, ilike, or, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { expandRecurrence, expandSlots, seatLabels, slugify } from "@/lib/utils";
+import { filterDemoEvents } from "@/lib/demo-events";
 import { nanoid } from "nanoid";
 
 /** GET /api/events — discovery feed with Eventbrite-style facets. */
@@ -111,6 +112,11 @@ export async function GET(req: NextRequest) {
       .orderBy(order)
       .limit(limit);
 
+    if (rows.length === 0) {
+      const fallback = filterDemoEvents(new URL(req.url).searchParams).slice(0, limit);
+      return NextResponse.json({ events: fallback, count: fallback.length, demo: true });
+    }
+
     if (!withTiers) {
       return NextResponse.json({ events: rows, count: rows.length });
     }
@@ -155,8 +161,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ events: enriched, count: enriched.length });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
+    // The read-only discovery feed stays useful in a fresh preview even when
+    // PostgreSQL has not been connected yet. These are UEB-owned local events,
+    // not a handoff to an external marketplace.
+    console.warn("Discovery database unavailable; serving the first-party catalogue");
+    const params = new URL(req.url).searchParams;
+    const limit = Math.min(parseInt(params.get("limit") ?? "60", 10) || 60, 120);
+    const events = filterDemoEvents(params).slice(0, limit);
+    return NextResponse.json({ events, count: events.length, demo: true });
   }
 }
 

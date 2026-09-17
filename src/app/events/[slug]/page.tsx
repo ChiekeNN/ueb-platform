@@ -47,6 +47,7 @@ type Ev = RegEvent & {
 };
 type Detail = {
   event: Ev;
+  demo?: boolean;
   tiers: RegTier[];
   stats: { totalRegistrations: number; approved: number; pending: number; checkedIn: number; totalRevenue: number };
   organiser: { name: string; email: string; organisation?: string | null } | null;
@@ -195,6 +196,16 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
     <div style={{ background: "#fff", minHeight: "100dvh" }}>
       <Navbar />
 
+      {detail.demo && (
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-20">
+          <div className="p-3 rounded-xl" style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+            <p style={{ fontSize: "0.78rem", color: "#92400E", lineHeight: 1.5 }}>
+              Demo catalogue preview. Connect PostgreSQL and run <strong>POST /api/seed</strong> to enable live registration, payment and ticket issuing.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Floating action bar ── */}
       {showBar && (
         <div
@@ -224,8 +235,8 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                   <path d="M8 10.5V2m0 0L5 5m3-3l3 3M3 9.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
-              <button className="btn btn-primary btn-sm" onClick={() => openRegister()} disabled={soldOut && !event.waitlistEnabled} style={{ padding: "0.55rem 1.2rem" }}>
-                {soldOut ? (event.waitlistEnabled ? "Join waitlist" : "Sold out") : "Get tickets"}
+              <button className="btn btn-primary btn-sm" onClick={() => openRegister()} disabled={detail.demo || (soldOut && !event.waitlistEnabled)} style={{ padding: "0.55rem 1.2rem", opacity: detail.demo ? 0.55 : 1 }}>
+                {detail.demo ? "Demo preview" : soldOut ? (event.waitlistEnabled ? "Join waitlist" : "Sold out") : "Get tickets"}
               </button>
             </div>
           </div>
@@ -633,14 +644,14 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
 
                 <button
                   className="btn btn-primary w-full justify-center"
-                  style={{ padding: "0.85rem" }}
                   onClick={() => {
                     const firstTier = tiers.find((t) => (qty[t.id] ?? 0) > 0);
                     openRegister(firstTier?.id, Math.max(1, firstTier ? qty[firstTier.id] : 1));
                   }}
-                  disabled={soldOut && !event.waitlistEnabled}
+                  disabled={detail.demo || (soldOut && !event.waitlistEnabled)}
+                  style={{ padding: "0.85rem", opacity: detail.demo ? 0.55 : 1 }}
                 >
-                  {soldOut ? (event.waitlistEnabled ? "Join the waitlist" : "Sold out") : cartCount > 0 ? `Get ${cartCount} ticket${cartCount === 1 ? "" : "s"}` : "Get tickets"}
+                  {detail.demo ? "Demo preview" : soldOut ? (event.waitlistEnabled ? "Join the waitlist" : "Sold out") : cartCount > 0 ? `Get ${cartCount} ticket${cartCount === 1 ? "" : "s"}` : "Get tickets"}
                 </button>
 
                 <p style={{ fontSize: "0.72rem", color: "var(--text-3)", textAlign: "center", marginTop: "0.7rem", lineHeight: 1.6 }}>
