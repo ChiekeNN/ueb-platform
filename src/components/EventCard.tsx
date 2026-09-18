@@ -150,6 +150,9 @@ export default function EventCard({ event, onOpen }: { event: EventCardData; onO
           <p style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
             {event.organiserFollowers ? `${event.organiserFollowers.toLocaleString()} followers` : formatLabel(event.format)}
           </p>
+          <p style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: "0.15rem" }}>
+            {Number(event.totalRegistrations ?? 0).toLocaleString()} registered
+          </p>
         </div>
       </div>
     </article>

@@ -141,7 +141,9 @@ export const DEMO_EVENTS: DemoEvent[] = Object.entries(CATALOGUE).flatMap(([cate
       imageUrl,
       bannerColor: COLORS[(categoryIndex + index) % COLORS.length],
       capacity: 120 + index * 80 + categoryIndex * 20,
-      totalRegistrations: 0,
+      // Stable demo engagement numbers keep the upcoming cards feeling alive
+      // without changing on every render or pretending these are live bookings.
+      totalRegistrations: 24 + ((categoryIndex * 61 + index * 37) % 470),
       totalCheckins: 0,
       totalRevenue: "0",
       soldOut: false,
