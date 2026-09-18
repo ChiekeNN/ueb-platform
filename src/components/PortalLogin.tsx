@@ -44,6 +44,7 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
   const demoAccount = DEMO_ACCOUNTS[role];
   const [email, setEmail] = useState(demoAccount.email);
   const [password, setPassword] = useState(demoAccount.password);
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -108,7 +109,10 @@ export default function PortalLogin({ role }: { role: PortalRole }) {
             </label>
             <label className="block mb-5">
               <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-2)", marginBottom: "0.4rem" }}>Password</span>
-              <input className="input" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
+              <div style={{ position: "relative" }}>
+                <input className="input pr-12" type={showPassword ? "text" : "password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
+                <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", fontSize: "1rem" }}>{showPassword ? "🙈" : "👁️"}</button>
+              </div>
             </label>
             <button type="submit" className="btn btn-primary w-full justify-center" disabled={busy} style={{ opacity: busy ? 0.65 : 1 }}>
               {busy ? "Opening workspace…" : `Continue as ${portal.label}`}

@@ -14,6 +14,8 @@ const CONFIG: Record<SignupRole, { label: string; title: string; note: string; i
 export default function SignupForm({ role }: { role: SignupRole }) {
   const config = CONFIG[role];
   const [form, setForm] = useState({ name: "", email: "", organisation: "", password: "", confirm: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,8 +73,8 @@ export default function SignupForm({ role }: { role: SignupRole }) {
             </div>
             {role !== "subscriber" && <label className="block mt-4"><span className="field-label">Organisation</span><input className="input" value={form.organisation} onChange={(e) => setForm({ ...form, organisation: e.target.value })} placeholder="Your organisation or company" /></label>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-              <label><span className="field-label">Password *</span><input className="input" required minLength={8} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" /></label>
-              <label><span className="field-label">Confirm password *</span><input className="input" required minLength={8} type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} placeholder="Repeat password" /></label>
+              <label><span className="field-label">Password *</span><div style={{ position: "relative" }}><input className="input pr-12" required minLength={8} type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", fontSize: "1rem" }}>{showPassword ? "🙈" : "👁️"}</button></div></label>
+              <label><span className="field-label">Confirm password *</span><div style={{ position: "relative" }}><input className="input pr-12" required minLength={8} type={showConfirm ? "text" : "password"} value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} placeholder="Repeat password" /><button type="button" onClick={() => setShowConfirm((visible) => !visible)} aria-label={showConfirm ? "Hide password" : "Show password"} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", fontSize: "1rem" }}>{showConfirm ? "🙈" : "👁️"}</button></div></label>
             </div>
             <button className="btn btn-primary w-full justify-center mt-6" disabled={busy} style={{ opacity: busy ? 0.65 : 1 }}>{busy ? "Creating account…" : `Create ${config.label.toLowerCase()} account`}</button>
             <p className="text-center mt-4" style={{ color: "var(--text-3)", fontSize: "0.7rem", lineHeight: 1.5 }}>By continuing, you agree to use UEB responsibly. Organiser and admin access is subject to approval.</p>
