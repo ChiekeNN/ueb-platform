@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">CREATIVE ECONOMY event poster</title>
+  <desc id="desc">A modern UEB event poster for CREATIVE ECONOMY.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#451a03"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <radialGradient id="glow" cx="80%" cy="15%" r="70%"><stop offset="0" stop-color="#fde68a" stop-opacity=".55"/><stop offset="1" stop-color="#fde68a" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#fff" stroke-opacity=".1"/></pattern>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect width="1200" height="675" fill="url(#grid)"/>
+  <rect width="1200" height="675" fill="url(#glow)"/>
+  <circle cx="1000" cy="150" r="170" fill="none" stroke="#fde68a" stroke-opacity=".28" stroke-width="2"/>
+  <circle cx="1000" cy="150" r="108" fill="none" stroke="#fde68a" stroke-opacity=".42" stroke-width="2"/>
+  <circle cx="1000" cy="150" r="12" fill="#fde68a"/>
+  <text x="72" y="80" fill="#fff" fill-opacity=".72" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="5">UEB / UPCOMING</text>
+  <text x="72" y="485" fill="#fff" font-family="Arial, sans-serif" font-size="66" font-weight="900" letter-spacing="-2">CREATIVE ECONOMY</text>
+  <text x="72" y="540" fill="#fde68a" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="4">LAGOS · ABUJA · ONLINE</text>
+  <text x="1040" y="600" fill="#fff" fill-opacity=".8" font-family="Arial, sans-serif" font-size="82" font-weight="900" text-anchor="middle">04</text>
+</svg>

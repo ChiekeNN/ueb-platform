@@ -104,10 +104,14 @@ const CATALOGUE: Record<string, string[]> = {
   ],
 };
 
-const IMAGES = [
-  "/events/summit.jpg", "/events/workshop.jpg", "/events/tech-festival.jpg",
-  "/events/convention.jpg", "/events/masterclass.jpg", "/events/startup-clinic.jpg",
+export const DEMO_POSTERS = [
+  "/events/poster-01.svg", "/events/poster-02.svg", "/events/poster-03.svg",
+  "/events/poster-04.svg", "/events/poster-05.svg", "/events/poster-06.svg",
+  "/events/poster-07.svg", "/events/poster-08.svg", "/events/poster-09.svg",
+  "/events/poster-10.svg", "/events/poster-11.svg", "/events/poster-12.svg",
 ];
+
+const IMAGES = DEMO_POSTERS;
 const CITIES = ["Lagos", "Abuja", "Port Harcourt", "Ibadan"];
 const COLORS = ["#7C3AED", "#2563EB", "#059669", "#DC2626", "#D97706", "#0891B2"];
 

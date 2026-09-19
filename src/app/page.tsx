@@ -6,7 +6,7 @@ import { events, registrations, ticketTiers } from "@/db/schema";
 import { eq, sql, asc, inArray, and, gte } from "drizzle-orm";
 import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
-import { DEMO_EVENTS } from "@/lib/demo-events";
+import { DEMO_EVENTS, DEMO_POSTERS } from "@/lib/demo-events";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +42,9 @@ async function getFeatured() {
       totalRegistrations: events.totalRegistrations,
       capacity: events.capacity,
       status: events.status,
-    }).from(events).where(and(eq(events.status, "published"), gte(events.startDate, new Date()))).orderBy(asc(events.startDate)).limit(6);
+    }).from(events).where(and(eq(events.status, "published"), gte(events.startDate, new Date()))).orderBy(asc(events.startDate)).limit(12);
 
-    if (rows.length === 0) return DEMO_EVENTS.slice(0, 6);
+    if (rows.length === 0) return DEMO_EVENTS.slice(0, 12);
 
     const ids = rows.map((row) => row.id);
     const tiers = ids.length
@@ -53,10 +53,19 @@ async function getFeatured() {
         .where(inArray(ticketTiers.eventId, ids))
       : [];
 
-    return rows.map((row) => ({
-      ...row,
-      tiers: tiers.filter((tier) => tier.eventId === row.id),
-    }));
+    const usedPosters = new Set<string>();
+    return rows.map((row, index) => {
+      const originalPoster = row.imageUrl ?? "";
+      const poster = originalPoster && !usedPosters.has(originalPoster)
+        ? originalPoster
+        : DEMO_POSTERS.find((candidate) => !usedPosters.has(candidate)) ?? DEMO_POSTERS[index % DEMO_POSTERS.length];
+      usedPosters.add(poster);
+      return {
+        ...row,
+        imageUrl: poster,
+        tiers: tiers.filter((tier) => tier.eventId === row.id),
+      };
+    });
   } catch {
     return DEMO_EVENTS.slice(0, 6);
   }
