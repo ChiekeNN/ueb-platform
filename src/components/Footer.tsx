@@ -38,11 +38,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 pt-16 pb-10">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-14">
           <div className="col-span-2">
-            <Link href="/" className="flex items-center gap-2.5 mb-4" aria-label="UEB home">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #7C3AED, #4C1D95)" }}>
-                <span className="font-black text-white" style={{ fontSize: "10px" }}>UEB</span>
-              </div>
-              <span className="font-black text-xl tracking-tight">UEB</span>
+            <Link href="/" className="inline-flex items-center mb-4 rounded-xl overflow-hidden bg-white" aria-label="Unique Event Booking home" style={{ width: 230, height: 66 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/ueb-logo.svg" alt="Unique Event Booking" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
             </Link>
             <p style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.75, maxWidth: 260 }}>
               Africa&apos;s Event Operating System. Create, manage, sell, and understand events — all in one place.

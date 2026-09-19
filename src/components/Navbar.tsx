@@ -93,38 +93,11 @@ export default function Navbar() {
       >
         <nav className="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden"
-              style={{ background: "linear-gradient(135deg, #7C3AED, #4C1D95)" }}
-            >
-              <span
-                className="relative z-10 font-black text-white tracking-tight"
-                style={{ fontSize: "10px", letterSpacing: "-0.03em" }}
-              >
-                UEB
-              </span>
-              <div
-                className="absolute inset-0 opacity-30"
-                style={{
-                  background: "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), transparent 60%)",
-                }}
-              />
-            </div>
-            <div className="flex flex-col leading-none">
-              <span
-                className="font-black text-base tracking-tight"
-                style={{ color: scrolled || !isHome ? "var(--ink)" : "#fff", letterSpacing: "-0.03em" }}
-              >
-                UEB
-              </span>
-              <span
-                className="font-medium hidden sm:block"
-                style={{ fontSize: "9px", color: scrolled || !isHome ? "var(--text-3)" : "rgba(255,255,255,0.6)", letterSpacing: "0.06em", textTransform: "uppercase" }}
-              >
-                Unique Events Booking
-              </span>
-            </div>
+          <Link href="/" className="shrink-0 flex items-center" aria-label="Unique Event Booking home">
+            <span className="rounded-xl overflow-hidden bg-white" style={{ display: "block", width: "clamp(132px, 18vw, 202px)", height: 48, boxShadow: "0 2px 12px rgba(10,10,15,0.12)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/ueb-logo.svg" alt="Unique Event Booking" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+            </span>
           </Link>
 
           {/* Desktop Nav */}

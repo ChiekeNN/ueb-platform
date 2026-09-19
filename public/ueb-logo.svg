@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 460" role="img" aria-labelledby="title desc">
+  <title id="title">Unique Event Booking</title>
+  <desc id="desc">UEB logo with Unique Event Booking and uniqueeventbooking.com</desc>
+  <defs>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9B35FF"/>
+      <stop offset="0.55" stop-color="#6D20E7"/>
+      <stop offset="1" stop-color="#32118D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="460" rx="24" fill="#fff"/>
+  <circle cx="230" cy="230" r="190" fill="url(#purple)"/>
+  <text x="230" y="295" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="158" font-weight="900" letter-spacing="-16">UEB</text>
+  <text x="470" y="205" fill="#0A0A0F" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="900" letter-spacing="-3">UNIQUE EVENT BOOKING</text>
+  <text x="530" y="330" fill="#0A0A0F" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="700" letter-spacing="1">www.uniqueeventbooking.com</text>
+</svg>

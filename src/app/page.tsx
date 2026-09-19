@@ -77,7 +77,7 @@ async function getFeatured() {
 
     return [...databaseEvents, ...demoFill].slice(0, 12);
   } catch {
-    return DEMO_EVENTS.slice(0, 6);
+    return DEMO_EVENTS.slice(0, 12);
   }
 }
 
