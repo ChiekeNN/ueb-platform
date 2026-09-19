@@ -22,6 +22,7 @@ import { expandRecurrence, expandSlots, generatePaymentReference, generateTicket
 import { nanoid } from "nanoid";
 import QRCode from "qrcode";
 import { hashPassword } from "@/lib/auth";
+import { PLANNED_EVENT_SEEDS } from "@/lib/demo-events";
 
 export async function POST(_req: NextRequest) {
   try {
@@ -447,7 +448,29 @@ export async function POST(_req: NextRequest) {
         listed: true,
       };
     }));
-    const allDemoEvents = [...demoEvents, ...catalogueEvents];
+    const plannedEvents = PLANNED_EVENT_SEEDS.map((seed) => ({
+      title: seed.title,
+      tagline: `${seed.category[0].toUpperCase()}${seed.category.slice(1)} experiences curated for Nigeria's next generation of organisers and communities.`,
+      description: `Join this UEB ${seed.category} event for practical sessions, trusted connections and an experience designed around the people in the room.`,
+      category: seed.category as typeof events.category.enumValues[number],
+      type: "standard" as const,
+      format: "in_person" as const,
+      startDate: new Date(seed.startDate),
+      endDate: new Date(seed.endDate),
+      venue: seed.venue,
+      city: seed.city,
+      capacity: seed.capacity,
+      imageUrl: seed.imageUrl,
+      gallery: [seed.imageUrl],
+      bannerColor: seed.bannerColor,
+      highlights: ["Branded registration and digital ticketing on UEB", "Connect with attendees, speakers and partners", "QR check-in and live attendance tracking"],
+      faqs: [],
+      requiresApproval: false,
+      status: "published" as const,
+      listed: true,
+      totalRegistrations: seed.totalRegistrations,
+    }));
+    const allDemoEvents = [...demoEvents, ...catalogueEvents, ...plannedEvents];
     const originalDemoEventCount = demoEvents.length;
 
     const ticketData = [
@@ -523,12 +546,13 @@ export async function POST(_req: NextRequest) {
       }
 
       created++;
+      const seededRegistrations = "totalRegistrations" in eventData ? eventData.totalRegistrations : undefined;
       const [event] = await db.insert(events).values({
         ...eventData,
         slug,
         organiserId: adminUser.id,
         organisationId: org.id,
-        totalRegistrations: 0,
+        totalRegistrations: seededRegistrations ?? 0,
         totalCheckins: 0,
         totalRevenue: "0",
       }).returning();
@@ -748,9 +772,10 @@ export async function POST(_req: NextRequest) {
         ]);
       }
 
+      const displayRegistrations = seededRegistrations ?? numRegs;
       await db.update(events).set({
-        totalRegistrations: numRegs,
-        totalCheckins: Math.floor(numRegs * 0.3),
+        totalRegistrations: displayRegistrations,
+        totalCheckins: Math.floor(displayRegistrations * 0.3),
         totalRevenue: totalRev.toString(),
       }).where(eq(events.id, event.id));
 

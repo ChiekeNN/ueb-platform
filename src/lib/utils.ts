@@ -18,7 +18,7 @@ export function eventDateShort(date: Date | string | null | undefined): string {
   if (!date) return "Date TBA";
   const d = typeof date === "string" ? new Date(date) : date;
   const day = d.toLocaleDateString("en-GB", { weekday: "short" });
-  const rest = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const rest = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   return `${day}, ${rest}, ${formatTimeCompact(d)}`;
 }
 
@@ -34,7 +34,7 @@ export function eventDateLine(start: Date | string | null | undefined, end?: Dat
   if (!start) return "Date and time to be announced";
   const s = typeof start === "string" ? new Date(start) : start;
   const weekday = s.toLocaleDateString("en-GB", { weekday: "long" });
-  const dayMonth = s.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  const dayMonth = s.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   let line = `${weekday}, ${dayMonth} • ${formatTimeCompact(s)}`;
   if (end) {
     const e = typeof end === "string" ? new Date(end) : end;
