@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import Footer from "@/components/Footer";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +16,14 @@ export const metadata: Metadata = {
     locale: "en_NG",
   },
   twitter: { card: "summary_large_image", title: "UEB — Unique Events Booking" },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/ueb-icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -39,6 +48,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         {children}
         <Footer />
+        <PWAInstallPrompt />
       </body>
     </html>
   );
