@@ -44,8 +44,6 @@ async function getFeatured() {
       status: events.status,
     }).from(events).where(and(eq(events.status, "published"), gte(events.startDate, new Date()))).orderBy(asc(events.startDate)).limit(12);
 
-    if (rows.length === 0) return DEMO_EVENTS.slice(0, 12);
-
     const ids = rows.map((row) => row.id);
     const tiers = ids.length
       ? await db.select({ id: ticketTiers.id, eventId: ticketTiers.eventId, name: ticketTiers.name, price: ticketTiers.price, type: ticketTiers.type })
@@ -54,7 +52,7 @@ async function getFeatured() {
       : [];
 
     const usedPosters = new Set<string>();
-    return rows.map((row, index) => {
+    const databaseEvents = rows.map((row, index) => {
       const originalPoster = row.imageUrl ?? "";
       const poster = originalPoster && !usedPosters.has(originalPoster)
         ? originalPoster
@@ -66,6 +64,18 @@ async function getFeatured() {
         tiers: tiers.filter((tier) => tier.eventId === row.id),
       };
     });
+
+    const knownSlugs = new Set(databaseEvents.map((event) => event.slug));
+    const demoFill = DEMO_EVENTS
+      .filter((event) => !knownSlugs.has(event.slug))
+      .slice(0, Math.max(12 - databaseEvents.length, 0))
+      .map((event) => {
+        const poster = DEMO_POSTERS.find((candidate) => !usedPosters.has(candidate)) ?? event.imageUrl;
+        usedPosters.add(poster);
+        return { ...event, imageUrl: poster };
+      });
+
+    return [...databaseEvents, ...demoFill].slice(0, 12);
   } catch {
     return DEMO_EVENTS.slice(0, 6);
   }
