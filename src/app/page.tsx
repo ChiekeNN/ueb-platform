@@ -8,6 +8,8 @@ import FeaturedEvents from "@/components/FeaturedEvents";
 import { formatCurrency } from "@/lib/utils";
 import { DEMO_EVENTS } from "@/lib/demo-events";
 
+export const dynamic = "force-dynamic";
+
 async function getStats() {
   try {
     const [ev] = await db.select({ count: sql<number>`count(*)` }).from(events).where(eq(events.status, "published"));
