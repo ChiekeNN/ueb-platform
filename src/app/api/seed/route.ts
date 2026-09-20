@@ -56,10 +56,10 @@ export async function POST(_req: NextRequest) {
     /* ── Organisations (the "By …" card on every event page) ── */
     const orgSeeds = [
       {
-        name: "Unique Events Booking Ltd",
-        slug: "unique-events-booking",
-        description: "Nigeria's event operating company — conferences, summits and corporate gatherings across West Africa.",
-        email: "hello@ueb.ng",
+        name: "Harbourlight Events Ltd",
+        slug: "harbourlight-events",
+        description: "Conferences, summits and corporate gatherings across West Africa.",
+        email: "hello@harbourlight.events",
         city: "Lagos",
         followers: 4187,
         eventsHosted: 96,
@@ -67,10 +67,10 @@ export async function POST(_req: NextRequest) {
         isVerified: true,
       },
       {
-        name: "UPEC University",
-        slug: "upec-university",
-        description: "University events office: careers fairs, guest lectures, alumni meet-ups and student conferences.",
-        email: "events@upec.edu.ng",
+        name: "Mango Tree Collective",
+        slug: "mango-tree-collective",
+        description: "Careers fairs, guest lectures, alumni meet-ups and community conferences.",
+        email: "hello@mangotreecollective.org",
         city: "Lagos",
         followers: 1236,
         eventsHosted: 58,
@@ -78,10 +78,10 @@ export async function POST(_req: NextRequest) {
         isVerified: true,
       },
       {
-        name: "ABC Corporation",
-        slug: "abc-corporation",
+        name: "Northstar Growth Partners",
+        slug: "northstar-growth-partners",
         description: "Corporate training and leadership development partner for West African enterprises.",
-        email: "training@abccorp.ng",
+        email: "hello@northstargrowth.com",
         city: "Abuja",
         followers: 742,
         eventsHosted: 24,

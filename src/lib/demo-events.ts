@@ -114,6 +114,21 @@ export const DEMO_POSTERS = [
 const IMAGES = DEMO_POSTERS;
 const CITIES = ["Lagos", "Abuja", "Port Harcourt", "Ibadan"];
 const COLORS = ["#7C3AED", "#2563EB", "#059669", "#DC2626", "#D97706", "#0891B2"];
+const DEMO_ORGANISERS = [
+  { name: "Chidi Okonkwo", organisation: "Harbourlight Events" },
+  { name: "Amara Nwosu", organisation: "Mango Tree Collective" },
+  { name: "Tolu Adebayo", organisation: "Northstar Growth Partners" },
+  { name: "Zainab Bello", organisation: "Cedar House Projects" },
+  { name: "Emeka Nnamani", organisation: "Riverside Experiences" },
+  { name: "Adaeze Eze", organisation: "Brightline Culture Studio" },
+  { name: "Femi Balogun", organisation: "The Foundry Network" },
+  { name: "Nneka Ibe", organisation: "Coastal Creative Co." },
+];
+
+function organiserFor(eventTitle: string) {
+  const index = [...eventTitle].reduce((total, character) => total + character.charCodeAt(0), 0) % DEMO_ORGANISERS.length;
+  return DEMO_ORGANISERS[index];
+}
 
 type PlannedEventSeed = {
   title: string;
@@ -165,6 +180,7 @@ export const PLANNED_EVENT_SEEDS: PlannedEventSeed[] = [
 
 function toDemoEvent(seed: PlannedEventSeed): DemoEvent {
   const slug = `planned-${slugify(seed.title)}`;
+  const organiser = organiserFor(seed.title);
   return {
     id: slug,
     title: seed.title,
@@ -190,8 +206,8 @@ function toDemoEvent(seed: PlannedEventSeed): DemoEvent {
     requiresApproval: false,
     organiserId: "demo-ueb-organiser",
     organisationId: "demo-ueb-organisation",
-    organiserName: "UEB Community Organisers",
-    organiserOrg: "Unique Events Booking",
+    organiserName: organiser.name,
+    organiserOrg: organiser.organisation,
     organiserFollowers: 4187,
     tiers: [{ id: `${slug}-general`, name: "General Admission", price: "0", type: "free" }],
     highlights: ["Branded registration and digital ticketing on UEB", "Connect with attendees, speakers and partners", "QR check-in and live attendance tracking"],
@@ -213,6 +229,7 @@ const CATALOGUE_EVENTS: DemoEvent[] = Object.entries(CATALOGUE).flatMap(([catego
     const slug = `demo-${slugify(title)}`;
     const price = index % 3 === 0 ? "0" : String(5000 + ((categoryIndex + index) % 6) * 2500);
     const imageUrl = IMAGES[(categoryIndex + index) % IMAGES.length];
+    const organiser = organiserFor(title);
 
     return {
       id: slug,
@@ -241,8 +258,8 @@ const CATALOGUE_EVENTS: DemoEvent[] = Object.entries(CATALOGUE).flatMap(([catego
       requiresApproval: category === "private" || index === 2,
       organiserId: "demo-ueb-organiser",
       organisationId: "demo-ueb-organisation",
-      organiserName: "UEB Community Organisers",
-      organiserOrg: "Unique Events Booking",
+      organiserName: organiser.name,
+      organiserOrg: organiser.organisation,
       organiserFollowers: 4187,
       tiers: [{
         id: `${slug}-general`,

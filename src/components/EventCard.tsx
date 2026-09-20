@@ -88,7 +88,7 @@ export default function EventCard({ event, onOpen }: { event: EventCardData; onO
   const price = priceSummaryLabel(event.tiers ?? []);
   const upcoming = event.nextSessionDate ?? event.startDate;
   const extraDates = Math.max((event.sessionCount ?? 0) - 1, 0);
-  const organiser = event.organiserOrg ?? event.organiserName ?? "UEB organiser";
+  const organiser = event.organiserOrg ?? event.organiserName ?? "Event organiser";
 
   const open = (e: React.MouseEvent) => {
     if (!onOpen) return;
