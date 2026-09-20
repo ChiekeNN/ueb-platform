@@ -139,13 +139,13 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* CTA */}
-          <div className="flex items-center gap-3">
+          {/* Desktop actions */}
+          <div className="hidden md:flex items-center gap-3">
             {session ? (
               <button
                 type="button"
                 onClick={logout}
-                className="hidden md:inline-flex btn btn-sm"
+                className="inline-flex btn btn-sm"
                 style={{
                   background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
                   color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
@@ -158,7 +158,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="hidden md:inline-flex btn btn-sm"
+                className="inline-flex btn btn-sm"
                 style={{
                   background: !scrolled && isHome ? "rgba(255,255,255,0.1)" : "var(--violet-bg)",
                   color: !scrolled && isHome ? "#fff" : "var(--violet-mid)",
@@ -170,7 +170,7 @@ export default function Navbar() {
             )}
             {canCreateEvents(session) && <Link
               href="/events/create"
-              className="hidden md:flex btn btn-primary"
+              className="flex btn btn-primary"
               style={{ padding: "0.55rem 1.25rem", fontSize: "0.85rem" }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -178,22 +178,22 @@ export default function Navbar() {
               </svg>
               Create Event
             </Link>}
-
-            {/* Mobile menu toggle */}
-            <button
-              type="button"
-              onClick={() => setOpen(o => !o)}
-              className="md:hidden flex items-center gap-2 px-3 h-9 rounded-xl font-bold text-sm transition-colors"
-              style={{ background: open || scrolled || !isHome ? "var(--violet-bg)" : "rgba(255,255,255,0.12)", color: !scrolled && isHome ? "#fff" : "var(--violet-mid)" }}
-              aria-label="Open menu"
-              aria-expanded={open}
-            >
-              <span>Menu</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                {open ? <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /> : <><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></>}
-              </svg>
-            </button>
           </div>
+
+          {/* Mobile header: only the logo and this menu button are visible. */}
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            className="md:hidden flex items-center gap-2 px-3 h-9 rounded-xl font-bold text-sm transition-colors"
+            style={{ background: open || scrolled || !isHome ? "var(--violet-bg)" : "rgba(255,255,255,0.12)", color: !scrolled && isHome ? "#fff" : "var(--violet-mid)" }}
+            aria-label="Open menu"
+            aria-expanded={open}
+          >
+            <span>Menu</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              {open ? <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /> : <><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></>}
+            </svg>
+          </button>
         </nav>
       </header>
 
