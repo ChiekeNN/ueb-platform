@@ -16,7 +16,15 @@ const FREE_FEATURES = [
 ];
 
 const PAID_FEATURES = [
-  "Everything in Free",
+  "Unlimited free events",
+  "Unlimited event pages",
+  "Registration management",
+  "Attendee approval workflow",
+  "Capacity controls",
+  "Custom confirmation messages",
+  "Refund policy display",
+  "Social sharing tools",
+  "Basic analytics dashboard",
   "Custom registration questions",
   "QR code digital tickets",
   "Mobile smartphone check-in",
