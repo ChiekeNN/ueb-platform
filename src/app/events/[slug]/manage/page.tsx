@@ -17,12 +17,15 @@ import {
 /* ─── Types (mirror the API payloads) ─────────────────────── */
 type EventT = {
   id: string; title: string; slug: string; status: string; type: string; category: string;
-  description?: string | null; startDate?: string | null; endDate?: string | null;
-  venue?: string | null; city?: string | null; capacity?: number | null;
-  requiresApproval?: boolean | null; seatSelectionEnabled?: boolean | null;
+  tagline?: string | null; description?: string | null; format?: string | null; startDate?: string | null; endDate?: string | null;
+  timezone?: string | null; venue?: string | null; city?: string | null; country?: string | null; address?: string | null;
+  virtualLink?: string | null; imageUrl?: string | null; gallery?: string[] | null; bannerColor?: string | null;
+  highlights?: string[] | null; faqs?: { question: string; answer: string }[] | null; ageRestriction?: string | null;
+  capacity?: number | null; requiresApproval?: boolean | null; seatSelectionEnabled?: boolean | null;
   waitlistEnabled?: boolean | null; surveyUrl?: string | null; postEventMessage?: string | null;
   completedAt?: string | null; totalRegistrations?: number | null; totalRevenue?: string | null;
-  recurrenceRule?: RecurrenceRuleT | null; customQuestions?: { id: string; label: string; type: string }[] | null;
+  refundPolicy?: string | null; customConfirmationMessage?: string | null; feeAbsorbedByOrganiser?: boolean | null; listed?: boolean | null;
+  recurrenceRule?: RecurrenceRuleT | null; customQuestions?: { id: string; label: string; type: string; required?: boolean; options?: string[] }[] | null;
 };
 type RecurrenceRuleT = {
   frequency: "daily" | "weekly" | "biweekly" | "monthly"; interval?: number; count?: number; until?: string | null;
@@ -79,6 +82,7 @@ type ConsoleData = {
 
 type Tab = { id: string; label: string; icon: string };
 const TABS: Tab[] = [
+  { id: "edit", label: "Edit event", icon: "✏️" },
   { id: "overview", label: "Overview", icon: "📊" },
   { id: "attendees", label: "Attendees", icon: "👥" },
   { id: "tickets", label: "Tickets", icon: "🎫" },
@@ -251,6 +255,7 @@ export default function ManageEventPage({ params }: { params: Promise<{ slug: st
       </div>
 
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8">
+        {tab === "edit" && <EditEvent data={data} api={api} run={run} busy={busy} />}
         {tab === "overview" && <Overview data={data} api={api} run={run} busy={busy} />}
         {tab === "attendees" && <Attendees data={data} api={api} run={run} busy={busy} />}
         {tab === "tickets" && <Tickets data={data} api={api} run={run} busy={busy} />}
@@ -314,6 +319,131 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
   return (
     <div className="progress-track" style={{ flex: 1 }}>
       <div className="progress-fill" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  );
+}
+
+function localDateTime(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function EditEvent({ data, api, run, busy }: { data: ConsoleData; api: ApiFn; run: RunFn; busy: string }) {
+  const { event } = data;
+  const [form, setForm] = useState({
+    title: event.title ?? "", tagline: event.tagline ?? "", description: event.description ?? "",
+    category: event.category ?? "other", type: event.type ?? "standard", format: event.format ?? "in_person",
+    startDate: localDateTime(event.startDate), endDate: localDateTime(event.endDate), timezone: event.timezone ?? "Africa/Lagos",
+    venue: event.venue ?? "", city: event.city ?? "", country: event.country ?? "Nigeria", address: event.address ?? "",
+    virtualLink: event.virtualLink ?? "", capacity: event.capacity?.toString() ?? "", imageUrl: event.imageUrl ?? "",
+    bannerColor: event.bannerColor ?? "#7C3AED", ageRestriction: event.ageRestriction ?? "",
+    refundPolicy: event.refundPolicy ?? "", customConfirmationMessage: event.customConfirmationMessage ?? "",
+    surveyUrl: event.surveyUrl ?? "", postEventMessage: event.postEventMessage ?? "",
+    status: event.status ?? "draft", requiresApproval: !!event.requiresApproval, waitlistEnabled: !!event.waitlistEnabled,
+    seatSelectionEnabled: !!event.seatSelectionEnabled, feeAbsorbedByOrganiser: !!event.feeAbsorbedByOrganiser,
+    listed: event.listed !== false,
+  });
+  const [highlights, setHighlights] = useState((event.highlights ?? []).join("\\n"));
+  const [gallery, setGallery] = useState((event.gallery ?? []).join("\\n"));
+  const [faqs, setFaqs] = useState(JSON.stringify(event.faqs ?? [], null, 2));
+  const [questions, setQuestions] = useState(JSON.stringify(event.customQuestions ?? [], null, 2));
+  const [posterError, setPosterError] = useState("");
+
+  const set = (field: string, value: string | boolean) => setForm((current) => ({ ...current, [field]: value }));
+  const parseJson = <T,>(value: string, label: string): T => {
+    try { return value.trim() ? JSON.parse(value) as T : [] as T; }
+    catch { throw new Error(`${label} must be valid JSON`); }
+  };
+
+  const uploadPoster = (file?: File) => {
+    if (!file) return;
+    setPosterError("");
+    if (!file.type.startsWith("image/")) { setPosterError("Choose an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { setPosterError("Choose an image smaller than 5 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => set("imageUrl", String(reader.result));
+    reader.onerror = () => setPosterError("This image could not be read.");
+    reader.readAsDataURL(file);
+  };
+
+  const save = () => run("event-details", async () => {
+    if (!form.title.trim()) throw new Error("Event title is required");
+    if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) throw new Error("End date must be after the start date");
+    await api(`/api/events/${event.slug}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...form,
+        title: form.title.trim(),
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : null,
+        endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        highlights: highlights.split("\\n").map((item) => item.trim()).filter(Boolean),
+        gallery: gallery.split("\\n").map((item) => item.trim()).filter(Boolean),
+        faqs: parseJson<{ question: string; answer: string }[]>(faqs, "FAQs"),
+        customQuestions: parseJson<{ id: string; label: string; type: string; required?: boolean; options?: string[] }[]>(questions, "Custom questions"),
+      }),
+    });
+    return "Event details saved";
+  });
+
+  return (
+    <div className="space-y-5">
+      <Card title="Edit event details" subtitle="Update the public page, event settings, schedule and registration experience. Use the other tabs to edit tickets, seating, slots, vendors and communications.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label><span style={labelStyle}>Event title *</span><input className="input" style={inputStyle} value={form.title} onChange={(e) => set("title", e.target.value)} /></label>
+          <label><span style={labelStyle}>Short tagline</span><input className="input" style={inputStyle} value={form.tagline} onChange={(e) => set("tagline", e.target.value)} placeholder="A clear promise for attendees" /></label>
+          <label className="md:col-span-2"><span style={labelStyle}>Description</span><textarea className="input" style={{ ...inputStyle, minHeight: 110 }} value={form.description} onChange={(e) => set("description", e.target.value)} /></label>
+          <label><span style={labelStyle}>Category</span><select className="input" style={inputStyle} value={form.category} onChange={(e) => set("category", e.target.value)}>{EVENT_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+          <label><span style={labelStyle}>Event type</span><select className="input" style={inputStyle} value={form.type} onChange={(e) => set("type", e.target.value)}><option value="standard">Standard</option><option value="recurring">Recurring</option><option value="timeslot">Appointment / time slots</option><option value="virtual">Virtual</option><option value="hybrid">Hybrid</option></select></label>
+          <label><span style={labelStyle}>Attendance format</span><select className="input" style={inputStyle} value={form.format} onChange={(e) => set("format", e.target.value)}><option value="in_person">In person</option><option value="online">Online</option><option value="hybrid">Hybrid</option></select></label>
+          <label><span style={labelStyle}>Status</span><select className="input" style={inputStyle} value={form.status} onChange={(e) => set("status", e.target.value)}><option value="draft">Draft</option><option value="published">Published</option><option value="cancelled">Cancelled</option><option value="completed">Completed</option></select></label>
+          <label><span style={labelStyle}>Start date and time</span><input className="input" style={inputStyle} type="datetime-local" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} /></label>
+          <label><span style={labelStyle}>End date and time</span><input className="input" style={inputStyle} type="datetime-local" value={form.endDate} onChange={(e) => set("endDate", e.target.value)} /></label>
+          <label><span style={labelStyle}>Timezone</span><input className="input" style={inputStyle} value={form.timezone} onChange={(e) => set("timezone", e.target.value)} /></label>
+          <label><span style={labelStyle}>Capacity</span><input className="input" style={inputStyle} type="number" min="1" value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></label>
+          <label><span style={labelStyle}>Venue</span><input className="input" style={inputStyle} value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label>
+          <label><span style={labelStyle}>City</span><input className="input" style={inputStyle} value={form.city} onChange={(e) => set("city", e.target.value)} /></label>
+          <label><span style={labelStyle}>Country</span><input className="input" style={inputStyle} value={form.country} onChange={(e) => set("country", e.target.value)} /></label>
+          <label><span style={labelStyle}>Address</span><input className="input" style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} /></label>
+          <label className="md:col-span-2"><span style={labelStyle}>Online / streaming link</span><input className="input" style={inputStyle} type="url" value={form.virtualLink} onChange={(e) => set("virtualLink", e.target.value)} placeholder="https://…" /></label>
+        </div>
+      </Card>
+
+      <Card title="Poster and event content" subtitle="Change the cover image and the information guests see on the page.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label><span style={labelStyle}>Poster image URL</span><input className="input" style={inputStyle} value={form.imageUrl.startsWith("data:") ? "Uploaded poster" : form.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} placeholder="https://… or upload below" /></label>
+          <label><span style={labelStyle}>Upload a new poster</span><input className="input" style={inputStyle} type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadPoster(e.target.files?.[0])} /></label>
+          {form.imageUrl && <div className="md:col-span-2 rounded-2xl overflow-hidden" style={{ maxWidth: 420, border: "1px solid var(--border)" }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={form.imageUrl} alt="Event poster preview" style={{ display: "block", width: "100%", aspectRatio: "2 / 1", objectFit: "cover" }} /></div>}
+          {posterError && <p className="md:col-span-2" style={{ color: "#B91C1C", fontSize: "0.75rem" }}>{posterError}</p>}
+          <label className="md:col-span-2"><span style={labelStyle}>Highlights (one per line)</span><textarea className="input" style={{ ...inputStyle, minHeight: 100 }} value={highlights} onChange={(e) => setHighlights(e.target.value)} /></label>
+          <label><span style={labelStyle}>Gallery image URLs (one per line)</span><textarea className="input" style={{ ...inputStyle, minHeight: 100 }} value={gallery} onChange={(e) => setGallery(e.target.value)} placeholder="https://…" /></label>
+          <label><span style={labelStyle}>Banner colour</span><input className="input" style={{ ...inputStyle, height: 42 }} type="color" value={form.bannerColor} onChange={(e) => set("bannerColor", e.target.value)} /></label>
+        </div>
+      </Card>
+
+      <Card title="Registration and guest experience" subtitle="Control approval, access, policies and the messages shown after registration.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label><span style={labelStyle}>Age restriction</span><input className="input" style={inputStyle} value={form.ageRestriction} onChange={(e) => set("ageRestriction", e.target.value)} placeholder="18+ or All ages" /></label>
+          <label><span style={labelStyle}>Refund policy</span><input className="input" style={inputStyle} value={form.refundPolicy} onChange={(e) => set("refundPolicy", e.target.value)} /></label>
+          <label className="md:col-span-2"><span style={labelStyle}>Custom confirmation message</span><textarea className="input" style={{ ...inputStyle, minHeight: 90 }} value={form.customConfirmationMessage} onChange={(e) => set("customConfirmationMessage", e.target.value)} /></label>
+          <label><span style={labelStyle}>Post-event message</span><textarea className="input" style={{ ...inputStyle, minHeight: 90 }} value={form.postEventMessage} onChange={(e) => set("postEventMessage", e.target.value)} /></label>
+          <label><span style={labelStyle}>Survey URL</span><input className="input" style={inputStyle} type="url" value={form.surveyUrl} onChange={(e) => set("surveyUrl", e.target.value)} placeholder="https://…" /></label>
+          <label className="md:col-span-2"><span style={labelStyle}>FAQs (JSON array)</span><textarea className="input font-mono" style={{ ...inputStyle, minHeight: 130, fontSize: "0.72rem" }} value={faqs} onChange={(e) => setFaqs(e.target.value)} /></label>
+          <label className="md:col-span-2"><span style={labelStyle}>Custom registration questions (JSON array)</span><textarea className="input font-mono" style={{ ...inputStyle, minHeight: 130, fontSize: "0.72rem" }} value={questions} onChange={(e) => setQuestions(e.target.value)} /></label>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5">
+          {[
+            ["requiresApproval", "Require attendee approval"],
+            ["waitlistEnabled", "Enable waitlist when full"],
+            ["seatSelectionEnabled", "Enable seat selection"],
+            ["feeAbsorbedByOrganiser", "Absorb UEB ticket fees"],
+            ["listed", "Show this event publicly"],
+          ].map(([key, label]) => <label key={key} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--surface)" }}><input type="checkbox" checked={Boolean(form[key as keyof typeof form])} onChange={(e) => set(key, e.target.checked)} /><span style={{ fontSize: "0.8rem", color: "var(--text-2)", fontWeight: 700 }}>{label}</span></label>)}
+        </div>
+        <div className="flex justify-end mt-6"><button className="btn btn-primary" disabled={busy === "event-details"} onClick={save}>{busy === "event-details" ? "Saving…" : "Save all event changes"}</button></div>
+      </Card>
     </div>
   );
 }

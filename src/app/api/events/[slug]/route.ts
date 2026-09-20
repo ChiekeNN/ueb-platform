@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { asc, eq, sql } from "drizzle-orm";
 import { findDemoEvent } from "@/lib/demo-events";
+import { canCreateEvents, getCurrentUser, type AuthRole } from "@/lib/auth";
 
 export async function GET(
   _req: NextRequest,
@@ -160,6 +161,17 @@ export async function GET(
   }
 }
 
+async function requireEventEditor(event: { organiserId: string | null }) {
+  const user = await getCurrentUser();
+  if (!user) return { user: null, response: NextResponse.json({ error: "Sign in as an approved organiser or admin to edit events" }, { status: 401 }) };
+  const approved = canCreateEvents({ role: user.role as AuthRole, accountStatus: user.accountStatus as "pending" | "approved" | "rejected" | "suspended" });
+  const admin = user.role === "platform_admin" || user.role === "org_admin";
+  if (!approved || (!admin && event.organiserId !== user.id)) {
+    return { user: null, response: NextResponse.json({ error: "You can only edit events owned by your approved organiser account" }, { status: 403 }) };
+  }
+  return { user, response: null };
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -170,19 +182,29 @@ export async function PATCH(
 
     const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const access = await requireEventEditor(event);
+    if (access.response) return access.response;
 
     const [updated] = await db.update(events)
       .set({
         ...(body.title ? { title: body.title } : {}),
+        ...(body.tagline !== undefined ? { tagline: body.tagline } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.category ? { category: body.category } : {}),
         ...(body.type ? { type: body.type } : {}),
+        ...(body.format ? { format: body.format } : {}),
         ...(body.status ? { status: body.status } : {}),
         ...(body.venue !== undefined ? { venue: body.venue } : {}),
         ...(body.city !== undefined ? { city: body.city } : {}),
+        ...(body.country !== undefined ? { country: body.country } : {}),
         ...(body.address !== undefined ? { address: body.address } : {}),
+        ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
+        ...(body.virtualLink !== undefined ? { virtualLink: body.virtualLink } : {}),
         ...(body.bannerColor ? { bannerColor: body.bannerColor } : {}),
         ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
+        ...(body.gallery !== undefined ? { gallery: Array.isArray(body.gallery) ? body.gallery : [] } : {}),
+        ...(body.highlights !== undefined ? { highlights: Array.isArray(body.highlights) ? body.highlights : [] } : {}),
+        ...(body.faqs !== undefined ? { faqs: Array.isArray(body.faqs) ? body.faqs : [] } : {}),
         ...(body.capacity !== undefined ? { capacity: body.capacity ? parseInt(String(body.capacity), 10) : null } : {}),
         ...(body.requiresApproval !== undefined ? { requiresApproval: !!body.requiresApproval } : {}),
         ...(body.waitlistEnabled !== undefined ? { waitlistEnabled: !!body.waitlistEnabled } : {}),
@@ -193,6 +215,9 @@ export async function PATCH(
         ...(body.postEventMessage !== undefined ? { postEventMessage: body.postEventMessage } : {}),
         ...(body.recurrenceRule !== undefined ? { recurrenceRule: body.recurrenceRule } : {}),
         ...(body.customConfirmationMessage !== undefined ? { customConfirmationMessage: body.customConfirmationMessage } : {}),
+        ...(body.customQuestions !== undefined ? { customQuestions: Array.isArray(body.customQuestions) ? body.customQuestions : [] } : {}),
+        ...(body.ageRestriction !== undefined ? { ageRestriction: body.ageRestriction } : {}),
+        ...(body.listed !== undefined ? { listed: !!body.listed } : {}),
         startDate: body.startDate ? new Date(body.startDate) : event.startDate,
         endDate: body.endDate ? new Date(body.endDate) : event.endDate,
         updatedAt: new Date(),
@@ -215,6 +240,8 @@ export async function DELETE(
     const { slug } = await params;
     const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const access = await requireEventEditor(event);
+    if (access.response) return access.response;
 
     await db.delete(events).where(eq(events.id, event.id));
     return NextResponse.json({ success: true });
