@@ -415,7 +415,12 @@ function EditEvent({ data, api, run, busy }: { data: ConsoleData; api: ApiFn; ru
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label><span style={labelStyle}>Poster image URL</span><input className="input" style={inputStyle} value={form.imageUrl.startsWith("data:") ? "Uploaded poster" : form.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} placeholder="https://… or upload below" /></label>
           <label><span style={labelStyle}>Upload a new poster</span><input className="input" style={inputStyle} type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadPoster(e.target.files?.[0])} /></label>
-          {form.imageUrl && <div className="md:col-span-2 rounded-2xl overflow-hidden" style={{ maxWidth: 420, border: "1px solid var(--border)" }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={form.imageUrl} alt="Event poster preview" style={{ display: "block", width: "100%", aspectRatio: "2 / 1", objectFit: "cover" }} /></div>}
+          {form.imageUrl && (
+            <div className="md:col-span-2 rounded-2xl overflow-hidden" style={{ maxWidth: 420, border: "1px solid var(--border)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={form.imageUrl} alt="Event poster preview" style={{ display: "block", width: "100%", aspectRatio: "2 / 1", objectFit: "cover" }} />
+            </div>
+          )}
           {posterError && <p className="md:col-span-2" style={{ color: "#B91C1C", fontSize: "0.75rem" }}>{posterError}</p>}
           <label className="md:col-span-2"><span style={labelStyle}>Highlights (one per line)</span><textarea className="input" style={{ ...inputStyle, minHeight: 100 }} value={highlights} onChange={(e) => setHighlights(e.target.value)} /></label>
           <label><span style={labelStyle}>Gallery image URLs (one per line)</span><textarea className="input" style={{ ...inputStyle, minHeight: 100 }} value={gallery} onChange={(e) => setGallery(e.target.value)} placeholder="https://…" /></label>

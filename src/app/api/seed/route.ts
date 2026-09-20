@@ -44,9 +44,12 @@ export async function POST(_req: NextRequest) {
     await db.update(users).set({ passwordHash: await hashPassword("admin1234"), accountStatus: "approved" }).where(eq(users.email, "admin@ueb.ng"));
     await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "chidi@upec.edu.ng"));
     await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "amara@abccorp.ng"));
-    const [demoOrganizer] = await db.select().from(users).where(eq(users.email, "organizer@ueb.ng")).limit(1);
-    if (!demoOrganizer) await db.insert(users).values({ name: "UEB Demo Organiser", email: "organizer@ueb.ng", passwordHash: await hashPassword("organizer1234"), role: "event_owner", accountStatus: "approved", organisation: "Unique Events Booking" });
-    else await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "organizer@ueb.ng"));
+    let [demoOrganizer] = await db.select().from(users).where(eq(users.email, "organizer@ueb.ng")).limit(1);
+    if (!demoOrganizer) {
+      [demoOrganizer] = await db.insert(users).values({ name: "UEB Demo Organiser", email: "organizer@ueb.ng", passwordHash: await hashPassword("organizer1234"), role: "event_owner", accountStatus: "approved", organisation: "Unique Events Booking" }).returning();
+    } else {
+      await db.update(users).set({ passwordHash: await hashPassword("organizer1234"), accountStatus: "approved" }).where(eq(users.email, "organizer@ueb.ng"));
+    }
     const [subscriberUser] = await db.select().from(users).where(eq(users.email, "subscriber@ueb.ng")).limit(1);
     if (!subscriberUser) await db.insert(users).values({ name: "UEB Subscriber", email: "subscriber@ueb.ng", passwordHash: await hashPassword("subscriber1234"), role: "attendee", accountStatus: "approved" });
 
@@ -532,6 +535,7 @@ export async function POST(_req: NextRequest) {
           format: eventData.format,
           highlights: eventData.highlights,
           faqs: eventData.faqs,
+          organiserId: demoOrganizer.id,
           organisationId: org.id,
         }).where(eq(events.id, ex.id));
 
@@ -550,7 +554,7 @@ export async function POST(_req: NextRequest) {
       const [event] = await db.insert(events).values({
         ...eventData,
         slug,
-        organiserId: adminUser.id,
+        organiserId: demoOrganizer.id,
         organisationId: org.id,
         totalRegistrations: seededRegistrations ?? 0,
         totalCheckins: 0,
