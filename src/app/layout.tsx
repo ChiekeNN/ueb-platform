@@ -5,6 +5,7 @@ import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ueb-platform.vercel.app"),
   title: { default: "UEB — Unique Events Booking", template: "%s · UEB" },
   description: "Africa's Event Operating System. Create, manage, sell, verify and analyse events — all in one elegant platform.",
   keywords: ["events", "ticketing", "Nigeria", "Africa", "conference", "registration", "QR code"],
@@ -14,14 +15,26 @@ export const metadata: Metadata = {
     description: "Africa's Event Operating System",
     type: "website",
     locale: "en_NG",
+    images: [{
+      url: "/icon-512.png",
+      width: 512,
+      height: 512,
+      alt: "Unique Event Booking icon",
+    }],
   },
-  twitter: { card: "summary_large_image", title: "UEB — Unique Events Booking" },
+  twitter: {
+    card: "summary_large_image",
+    title: "UEB — Unique Events Booking",
+    description: "Africa's Event Operating System",
+    images: ["/icon-512.png"],
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/ueb-icon.svg", type: "image/svg+xml" },
     ],
+    shortcut: ["/favicon-32x32.png"],
     apple: "/apple-touch-icon.png",
   },
 };
