@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { eventFeedback, registrations } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { badRequest, getEventBySlug, serverError } from "@/lib/server";
+import { requireEventAccess } from "@/lib/auth";
 
 /** GET /api/events/[slug]/feedback — responses + rating summary. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -38,8 +39,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const rating = body.rating ? parseInt(String(body.rating), 10) : null;

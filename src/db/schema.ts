@@ -80,6 +80,39 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "refunded",
 ]);
 
+/**
+ * Lifecycle of an event-organiser application.
+ *
+ * Nobody becomes an organiser on their own: registering creates an `attendee`,
+ * and only a `platform_admin` can move an application to `approved` — which is
+ * what flips the account's role to `event_owner` and unlocks the dashboard.
+ */
+export const organiserStatusEnum = pgEnum("organiser_status", [
+  "none",
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+export const applicationStatusEnum = pgEnum("application_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+/**
+ * Who a notification belongs to.
+ *
+ * `platform` rows have no `userId` — every admin sees them in the bell (new
+ * applications, signups, payments, refunds). `organiser` and `attendee` rows are
+ * addressed to one user and appear only in that person's bell.
+ */
+export const notificationScopeEnum = pgEnum("notification_scope", [
+  "platform",
+  "organiser",
+  "attendee",
+]);
+
 // Tables
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -87,10 +120,80 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   phone: varchar("phone", { length: 50 }),
   role: userRoleEnum("role").default("attendee").notNull(),
+  /**
+   * Organiser onboarding state, independent of `role`:
+   * `none` → never applied · `pending` → awaiting admin review ·
+   * `approved` → role is `event_owner` and events can be created ·
+   * `rejected` → may re-apply.
+   */
+  organiserStatus: organiserStatusEnum("organiser_status").default("none").notNull(),
   organisation: varchar("organisation", { length: 255 }),
   passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Login sessions. The cookie carries a random token; only its SHA-256 hash is
+ * stored, so a database leak cannot be replayed as a live session.
+ */
+export const sessions = pgTable("sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  userAgent: varchar("user_agent", { length: 300 }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+});
+
+/**
+ * Organiser applications — the admin approval queue.
+ *
+ * One row per submission; the newest row wins, so a rejected applicant can
+ * re-apply and the admin dashboard shows the pending request again.
+ */
+export const organiserApplications = pgTable("organiser_applications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  organisationName: varchar("organisation_name", { length: 255 }).notNull(),
+  organisationType: varchar("organisation_type", { length: 80 }),
+  website: text("website"),
+  phone: varchar("phone", { length: 50 }),
+  city: varchar("city", { length: 120 }),
+  country: varchar("country", { length: 100 }).default("Nigeria"),
+  /** What they intend to host — free text from the application form. */
+  about: text("about"),
+  expectedEventsPerYear: varchar("expected_events_per_year", { length: 40 }),
+  status: applicationStatusEnum("status").default("pending").notNull(),
+  /** Admin's note, shown back to the applicant when they are declined. */
+  reviewNote: text("review_note"),
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Notification bell feed — one row per thing worth telling someone about.
+ *
+ * `userId = null` + `scope = platform` addresses every admin, which is how the
+ * admin bell aggregates activity from all parts of the platform.
+ */
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  scope: notificationScopeEnum("scope").default("organiser").notNull(),
+  /** Machine-readable kind: organiser_application, registration, payment, … */
+  type: varchar("type", { length: 60 }).notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  body: text("body"),
+  /** Where clicking the notification should take the reader. */
+  link: varchar("link", { length: 500 }),
+  severity: varchar("severity", { length: 20 }).default("info").notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const organisations = pgTable("organisations", {
@@ -455,6 +558,21 @@ export type EventMessageChannel = "email" | "sms" | "whatsapp" | "in_app";export
 export const usersRelations = relations(users, ({ many }) => ({
   events: many(events),
   registrations: many(registrations),
+  sessions: many(sessions),
+  applications: many(organiserApplications),
+  notifications: many(notifications),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const organiserApplicationsRelations = relations(organiserApplications, ({ one }) => ({
+  user: one(users, { fields: [organiserApplications.userId], references: [users.id] }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
 export const eventsRelations = relations(events, ({ one, many }) => ({

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { registrations, events, ticketTiers } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assignSeat, badRequest, issueTicket, logMessage, releaseSeat, serverError } from "@/lib/server";
+import { requireEventAccess } from "@/lib/auth";
 
 /**
  * PATCH /api/registrations/[id]
@@ -21,6 +22,12 @@ export async function PATCH(
     if (!reg) return badRequest("Registration not found", 404);
 
     const [event] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+
+    /* Approving, rejecting, refunding and checking people in/out is the owning
+       organiser's job (or an admin's) — never a stranger's. The venue desk has
+       its own endpoint (/api/checkin) and does not come through here. */
+    const access = await requireEventAccess(event?.slug ?? "");
+    if ("error" in access) return access.error;
 
     const updateData: Partial<typeof registrations.$inferInsert> = { updatedAt: new Date() };
     if (body.status) updateData.status = body.status;

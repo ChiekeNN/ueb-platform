@@ -11,14 +11,19 @@ import {
   releaseSeat,
   serverError,
 } from "@/lib/server";
-import { toCSV } from "@/lib/utils";
+import { formatDateStamp, toCSV } from "@/lib/utils";
 
 /** GET /api/events/[slug]/registrations — attendee roster for the organiser console (JSON or CSV). */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
@@ -54,10 +59,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           Payment: r.paymentStatus,
           AmountPaid: r.amountPaid ?? "0",
           CheckedIn: r.checkedIn ? "yes" : "no",
-          CheckedInAt: r.checkedInAt ? new Date(r.checkedInAt).toISOString() : "",
+          CheckedInAt: r.checkedInAt ? formatDateStamp(r.checkedInAt) : "",
           Seat: r.seatLabel ?? "",
           Slot: r.slotLabel ?? "",
-          RegisteredAt: new Date(r.createdAt).toISOString(),
+          RegisteredAt: formatDateStamp(r.createdAt),
         }))
       );
       return new NextResponse(csv || "No registrations yet", {
@@ -84,6 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     return serverError(error, "Failed to load registrations");
   }
 }
+import { requireEventAccess } from "@/lib/auth";
 
 /**
  * PATCH /api/events/[slug]/registrations — bulk approval & attendance actions.
@@ -92,8 +98,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const ids: string[] = body.ids ?? [];

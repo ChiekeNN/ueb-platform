@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { asc, eq, sql } from "drizzle-orm";
 import { externalTicketing } from "@/lib/utils";
+import { getCurrentUser, requireEventAccess } from "@/lib/auth";
 
 export async function GET(
   _req: NextRequest,
@@ -113,6 +114,31 @@ export async function GET(
       attendeesBySlot: Object.fromEntries(bookedBySlot),
     };
 
+    /**
+     * The public event page and the organiser console read the same endpoint,
+     * but they must not see the same things: the attendee roster, payment
+     * figures and workspace only go to the owning organiser (or an admin).
+     * Everyone else gets the public event, its tiers and the organiser card.
+     */
+    const viewer = await getCurrentUser();
+    const mayManage =
+      !!viewer && (viewer.role === "platform_admin" || (!!event.organiserId && event.organiserId === viewer.id));
+
+    if (!mayManage) {
+      return NextResponse.json({
+        event,
+        tiers,
+        organiser,
+        publicStats: {
+          registered: regs.length,
+          spotsLeft: event.capacity ? Math.max(event.capacity - regs.length, 0) : null,
+        },
+        registrations: [],
+        stats: null,
+        workspace: null,
+      });
+    }
+
     return NextResponse.json({ event, tiers, registrations: regs, organiser, stats, workspace });
   } catch (error) {
     console.error(error);
@@ -126,6 +152,12 @@ export async function PATCH(
 ) {
   try {
     const { slug } = await params;
+
+    /* Only the owning organiser (or an admin) may change an event. */
+    const access = await requireEventAccess(slug);
+    if ("error" in access) return access.error;
+    const event = access.event;
+
     const body = await req.json();
 
     /* Reject a malformed external ticket URL rather than silently dropping it. */
@@ -135,9 +167,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
-    const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
-    if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const [updated] = await db.update(events)
       .set({
@@ -187,8 +216,11 @@ export async function DELETE(
 ) {
   try {
     const { slug } = await params;
-    const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
-    if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    /* Deleting an event is the owner's (or an admin's) call alone. */
+    const access = await requireEventAccess(slug);
+    if ("error" in access) return access.error;
+    const event = access.event;
 
     await db.delete(events).where(eq(events.id, event.id));
     return NextResponse.json({ success: true });

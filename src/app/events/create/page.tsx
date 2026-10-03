@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import { EVENT_CATEGORIES, BANNER_COLORS, calculateUEBFee, formatCurrency } from "@/lib/utils";
+import { useSession } from "@/components/SessionProvider";
+import { EVENT_CATEGORIES, BANNER_COLORS, calculateUEBFee, formatCurrency, formatDateKey } from "@/lib/utils";
 
 type TicketTier = {
   name: string; type: string; price: string; quantity: string;
@@ -30,6 +32,15 @@ function dateRange(start: string, end: string): string[] {
   return out;
 }
 
+/** Fires `router.replace` after mount — never during render. */
+function RedirectToLogin({ when, next }: { when: boolean; next: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    if (when) router.replace(`/login?next=${encodeURIComponent(next)}`);
+  }, [when, next, router]);
+  return null;
+}
+
 const STEPS = [
   { n: 1, label: "Details", icon: "📋" },
   { n: 2, label: "Tickets", icon: "🎫" },
@@ -47,6 +58,7 @@ const TIER_TYPES = [
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const session = useSession();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -138,6 +150,50 @@ export default function CreateEventPage() {
   const hasPaid = tiers.some(t => t.type !== "free" && parseFloat(t.price || "0") > 0);
   const eg = parseFloat(tiers.find(t => t.type !== "free")?.price || "0");
   const fee = calculateUEBFee(eg);
+
+  /* ── Organiser gate ──────────────────────────────────────────
+     Only an admin-approved organiser can create an event. Attendees and
+     pending applicants get a clear next step; the API enforces the same rule,
+     so this screen is guidance rather than the only line of defence. */
+  if (session.loading || !session.user) {
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="max-w-lg mx-auto px-5 pt-32 text-center" style={{ color: "var(--text-3)" }}>
+          {session.loading ? "Checking your access…" : "Taking you to sign in…"}
+        </div>
+        <RedirectToLogin when={!session.loading && !session.user} next="/events/create" />
+      </div>
+    );
+  }
+
+  if (!session.canAccessDashboard) {
+    const pending = session.next === "pending";
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="max-w-2xl mx-auto px-5 pt-28 pb-16">
+          <div className="card p-8 anim-fadeUp text-center">
+            <div className="text-4xl mb-3">{pending ? "⏳" : "🎪"}</div>
+            <h1 className="heading-2 mb-2" style={{ fontSize: "1.35rem" }}>
+              {pending ? "Approval pending" : "Approved organisers create events"}
+            </h1>
+            <p className="mb-6" style={{ fontSize: "0.88rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+              {pending
+                ? "Your organiser application is with a UEB admin. You'll be notified as soon as it's approved — then this page becomes your event wizard."
+                : "Apply for an organiser account to publish events and sell tickets. It takes a minute, and an admin reviews it."}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/become-organiser" className="btn btn-primary justify-center">
+                {pending ? "View application status" : "Become an organiser"}
+              </Link>
+              <Link href="/events" className="btn btn-outline justify-center">Browse events</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
@@ -587,7 +643,7 @@ export default function CreateEventPage() {
                 <div className="space-y-2">
                   {[
                     { icon: "📌", text: form.title || "Untitled Event" },
-                    form.startDate && { icon: "📅", text: `${form.startDate} at ${form.startTime}` },
+                    form.startDate && { icon: "📅", text: `${formatDateKey(form.startDate)} at ${form.startTime}` },
                     form.city && { icon: "📍", text: [form.venue, form.city].filter(Boolean).join(", ") },
                     { icon: "🎫", text: `${tiers.length} ticket type${tiers.length !== 1 ? "s" : ""}` },
                     form.type === "recurring" && { icon: "🔁", text: `${recurrence.count} sessions · ${recurrence.frequency}` },

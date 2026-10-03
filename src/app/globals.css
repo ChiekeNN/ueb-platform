@@ -240,6 +240,19 @@ body {
 .anim-spin-slow{ animation: spin-slow 12s linear infinite; }
 .anim-pulse-ring { animation: pulse-ring 2s cubic-bezier(.455,.03,.515,.955) infinite; }
 
+/* Install-app prompt: slides up from the bottom edge, and its rail drains for
+   as long as the offer is on screen (duration set inline from the component). */
+@keyframes installIn {
+  from { opacity: 0; transform: translate(-50%, 24px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes installCountdown {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+.anim-installIn { animation: installIn 0.45s cubic-bezier(.22,.68,0,1) both; }
+.anim-install-countdown { animation-name: installCountdown; animation-timing-function: linear; animation-fill-mode: forwards; }
+
 .delay-1 { animation-delay: 0.1s; }
 .delay-2 { animation-delay: 0.2s; }
 .delay-3 { animation-delay: 0.3s; }

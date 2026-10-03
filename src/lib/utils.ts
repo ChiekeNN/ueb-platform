@@ -13,13 +13,53 @@ export function formatCurrency(amount: number | string, currency = "NGN"): strin
   return num.toLocaleString("en-US", { style: "currency", currency });
 }
 
-/** "Fri, Nov 17, 8:30 AM" — the compact card format used across discovery. */
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+function asDate(date: Date | string): Date {
+  return typeof date === "string" ? new Date(date) : date;
+}
+
+/**
+ * "17/11/2027" — the platform-wide date format (DD/MM/YYYY).
+ *
+ * Padded day and month so the column of dates stays visually aligned, and the
+ * year always written in full. Built from local getters (never `toISOString`)
+ * so a date never slips a day for users east or west of the server.
+ */
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return "TBD";
+  const d = asDate(date);
+  if (Number.isNaN(d.getTime())) return "TBD";
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/**
+ * "17/11/2027" from a day key ("2027-11-17").
+ *
+ * Timeline buckets and `<input type="date">` values are plain calendar days,
+ * not instants — parsing them with `new Date("2027-11-17")` would treat them as
+ * UTC midnight and shift the day backwards west of Greenwich.
+ */
+export function formatDateKey(key: string | null | undefined): string {
+  if (!key) return "TBD";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(key.trim());
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return formatDate(key);
+}
+
+/** "17/11/2027 14:30" — date + 24h time, the export-safe companion to formatDate. */
+export function formatDateStamp(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = asDate(date);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${formatDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** "17/11/2027, 8:30 AM" — the compact card format used across discovery. */
 export function eventDateShort(date: Date | string | null | undefined): string {
   if (!date) return "Date TBA";
   const d = typeof date === "string" ? new Date(date) : date;
-  const day = d.toLocaleDateString("en-GB", { weekday: "short" });
-  const rest = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return `${day}, ${rest}, ${formatTimeCompact(d)}`;
+  return `${formatDate(d)}, ${formatTimeCompact(d)}`;
 }
 
 export function formatTimeCompact(d: Date): string {
@@ -29,13 +69,11 @@ export function formatTimeCompact(d: Date): string {
   return minutes === 0 ? `${hour12} ${suffix}` : `${hour12}:${String(minutes).padStart(2, "0")} ${suffix}`;
 }
 
-/** "Thursday, September 17 • 6:30 PM - 8 PM" — the event page date line. */
+/** "17/09/2027 • 6:30 PM - 8 PM" — the event page date line (DD/MM/YYYY). */
 export function eventDateLine(start: Date | string | null | undefined, end?: Date | string | null): string {
   if (!start) return "Date and time to be announced";
   const s = typeof start === "string" ? new Date(start) : start;
-  const weekday = s.toLocaleDateString("en-GB", { weekday: "long" });
-  const dayMonth = s.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
-  let line = `${weekday}, ${dayMonth} • ${formatTimeCompact(s)}`;
+  let line = `${formatDate(s)} • ${formatTimeCompact(s)}`;
   if (end) {
     const e = typeof end === "string" ? new Date(end) : end;
     line += ` - ${formatTimeCompact(e)}`;
@@ -394,23 +432,13 @@ export function generateTicketNumber(): string {
   return result;
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return "TBD";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("en-NG", {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export function formatTime(date: Date | string | null | undefined): string {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** "17/11/2027 at 08:30 AM" — DD/MM/YYYY date plus a 12h clock time. */
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "TBD";
   return `${formatDate(date)} at ${formatTime(date)}`;

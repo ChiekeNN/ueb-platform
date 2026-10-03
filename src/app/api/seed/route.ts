@@ -15,26 +15,109 @@ import {
   eventFeedback,
   payments,
   checkinLogs,
+  notifications,
+  organiserApplications,
   type RecurrenceRule,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { hashPassword } from "@/lib/auth";
 import { expandRecurrence, expandSlots, generatePaymentReference, generateTicketNumber, seatLabels, slugify } from "@/lib/utils";
 import { nanoid } from "nanoid";
 import QRCode from "qrcode";
 
 export async function POST(_req: NextRequest) {
   try {
-    // Create demo users
+    /* ── Demo accounts ──────────────────────────────────────────
+       Every demo account shares the password "demo1234" and is ready to sign
+       in at /login. The organiser accounts are already approved; Tunde is left
+       `pending` on purpose so the admin dashboard has a live application to
+       approve. */
+    const DEMO_PASSWORD = "demo1234";
+    const demoAccounts = [
+      { name: "UEB Admin", email: "admin@ueb.ng", role: "platform_admin" as const, organiserStatus: "none" as const, organisation: "Unique Events Booking" },
+      { name: "Chidi Okonkwo", email: "chidi@upec.edu.ng", role: "event_owner" as const, organiserStatus: "approved" as const, organisation: "UPEC University" },
+      { name: "Amara Nwosu", email: "amara@abccorp.ng", role: "event_owner" as const, organiserStatus: "approved" as const, organisation: "ABC Corporation" },
+      { name: "Tunde Bakare", email: "tunde@naijabiz.ng", role: "attendee" as const, organiserStatus: "pending" as const, organisation: "NaijaBiz Events" },
+    ];
+
     const existingUsers = await db.select().from(users).where(eq(users.email, "admin@ueb.ng")).limit(1);
-    let adminUser;
+    let adminUser: typeof users.$inferSelect;
+    let demoOrganisers: (typeof users.$inferSelect)[] = [];
     if (existingUsers.length === 0) {
-      [adminUser] = await db.insert(users).values([
-        { name: "UEB Admin", email: "admin@ueb.ng", role: "platform_admin", organisation: "Unique Events Booking" },
-        { name: "Chidi Okonkwo", email: "chidi@upec.edu.ng", role: "event_owner", organisation: "UPEC University" },
-        { name: "Amara Nwosu", email: "amara@abccorp.ng", role: "event_owner", organisation: "ABC Corporation" },
-      ]).returning();
+      const inserted = await db.insert(users).values(
+        demoAccounts.map((account) => ({
+          ...account,
+          passwordHash: hashPassword(DEMO_PASSWORD),
+        }))
+      ).returning();
+      adminUser = inserted[0];
+      demoOrganisers = inserted.filter((u) => u.role === "event_owner");
+
+      // Approved organisers get their (already reviewed) application on record…
+      const approvedAt = new Date();
+      await db.insert(organiserApplications).values(
+        inserted
+          .filter((u) => u.organiserStatus === "approved")
+          .map((u) => ({
+            userId: u.id,
+            organisationName: u.organisation ?? u.name,
+            organisationType: "Company",
+            city: "Lagos",
+            about: `Events hosted by ${u.organisation ?? u.name}.`,
+            expectedEventsPerYear: "6–10 events",
+            status: "approved" as const,
+            reviewNote: "Verified during onboarding.",
+            reviewedBy: adminUser.id,
+            reviewedAt: approvedAt,
+          }))
+      );
+
+      // …and Tunde's request stays pending, so the admin has something to action.
+      const pendingApplicant = inserted.find((u) => u.organiserStatus === "pending");
+      if (pendingApplicant) {
+        await db.insert(organiserApplications).values({
+          userId: pendingApplicant.id,
+          organisationName: pendingApplicant.organisation ?? pendingApplicant.name,
+          organisationType: "Media",
+          website: "https://naijabiz.example",
+          phone: "0803 555 0199",
+          city: "Port Harcourt",
+          about: "Quarterly business mixers and an annual SME growth summit for founders in Port Harcourt.",
+          expectedEventsPerYear: "3–5 events",
+          status: "pending",
+        });
+      }
+
+      // Seed the bell so the feed is not empty on first load.
+      await db.insert(notifications).values([
+        {
+          scope: "platform" as const,
+          userId: null,
+          type: "organiser_application",
+          title: "Organiser application: NaijaBiz Events",
+          body: "Tunde Bakare (tunde@naijabiz.ng) applied to organise events. Review it in the admin dashboard.",
+          link: "/admin/applications",
+          severity: "warning",
+        },
+        {
+          scope: "platform" as const,
+          userId: null,
+          type: "user_signup",
+          title: "New account: Amara Nwosu",
+          body: "amara@abccorp.ng joined UEB (ABC Corporation).",
+          link: "/admin/organisers",
+          severity: "info",
+        },
+      ]);
     } else {
-      adminUser = existingUsers[0];
+      // Idempotent re-seed: make sure the demo accounts keep working passwords.
+      const refreshed = await db
+        .update(users)
+        .set({ passwordHash: hashPassword(DEMO_PASSWORD), updatedAt: new Date() })
+        .where(inArray(users.email, demoAccounts.map((a) => a.email)))
+        .returning();
+      demoOrganisers = refreshed.filter((u) => u.role === "event_owner");
+      adminUser = refreshed.find((u) => u.email === "admin@ueb.ng") ?? existingUsers[0];
     }
 
     /* ── Organisations (the "By …" card on every event page) ── */
@@ -82,7 +165,7 @@ export async function POST(_req: NextRequest) {
       } else {
         const [created] = await db.insert(organisations).values({
           ...o,
-          ownerId: adminUser.id,
+          ownerId: (demoOrganisers[orgs.length % Math.max(demoOrganisers.length, 1)] ?? adminUser).id,
           hostingSince: new Date(Date.now() - 900 * 24 * 3600 * 1000),
         }).returning();
         orgs.push(created);
@@ -353,10 +436,15 @@ export async function POST(_req: NextRequest) {
       }
 
       created++;
+      // Share the portfolio across the demo organisers (falling back to the
+      // admin) so each organiser dashboard has events of its own.
+      const owner = demoOrganisers.length
+        ? demoOrganisers[created % demoOrganisers.length]
+        : adminUser;
       const [event] = await db.insert(events).values({
         ...eventData,
         slug,
-        organiserId: adminUser.id,
+        organiserId: owner.id,
         organisationId: org.id,
         totalRegistrations: 0,
         totalCheckins: 0,

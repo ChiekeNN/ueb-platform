@@ -4,6 +4,7 @@ import { eventOccurrences, events, type RecurrenceRule } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { badRequest, getEventBySlug, serverError } from "@/lib/server";
 import { expandRecurrence } from "@/lib/utils";
+import { requireEventAccess } from "@/lib/auth";
 
 /** GET /api/events/[slug]/occurrences — list saved occurrences, or preview the rule. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -42,8 +43,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const rule = body.rule as RecurrenceRule | undefined;
@@ -106,8 +112,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     if (!body.id) return badRequest("Occurrence id is required");
@@ -134,8 +145,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return badRequest("Occurrence id is required");

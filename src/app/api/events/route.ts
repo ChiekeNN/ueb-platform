@@ -13,6 +13,8 @@ import {
 } from "@/db/schema";
 import { eq, desc, asc, ilike, or, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { expandRecurrence, expandSlots, seatLabels, slugify, externalTicketing } from "@/lib/utils";
+import { getCurrentUser, requireUser } from "@/lib/auth";
+import { notifyPlatform } from "@/lib/notifications";
 import { badRequest } from "@/lib/server";
 import { nanoid } from "nanoid";
 
@@ -30,8 +32,18 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get("sort") ?? "date";    // date | newest
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "60", 10) || 60, 120);
     const withTiers = searchParams.get("tiers") === "1";
+    const mine = searchParams.get("mine") === "1";
 
     const conditions = [];
+
+    // "My events" is answered from the session, never from a query parameter —
+    // an organiser cannot ask for someone else's portfolio by editing the URL.
+    // Admins see the whole platform in the same dashboard.
+    if (mine) {
+      const viewer = await getCurrentUser();
+      if (!viewer) return NextResponse.json({ events: [], counts: {} });
+      if (viewer.role !== "platform_admin") conditions.push(eq(events.organiserId, viewer.id));
+    }
     if (status !== "all") {
       conditions.push(eq(events.status, status as "published" | "draft" | "cancelled" | "completed"));
       conditions.push(eq(events.listed, true));
@@ -170,22 +182,11 @@ export async function POST(req: NextRequest) {
       return badRequest("externalTicketUrl must be a valid http or https URL");
     }
 
-    // Ensure organiser exists or create a demo one
-    let organiserId = body.organiserId;
-    if (!organiserId) {
-      const existing = await db.select().from(users).where(eq(users.email, "demo@ueb.ng")).limit(1);
-      if (existing.length > 0) {
-        organiserId = existing[0].id;
-      } else {
-        const [newUser] = await db.insert(users).values({
-          name: "Demo Organiser",
-          email: "demo@ueb.ng",
-          role: "event_owner",
-          organisation: "UEB Demo",
-        }).returning();
-        organiserId = newUser.id;
-      }
-    }
+    // Only an admin-approved organiser may create events, and the event belongs
+    // to whoever is signed in — never to an id supplied in the request body.
+    const guard = await requireUser({ organiser: true });
+    if ("error" in guard) return guard.error;
+    const organiserId = guard.user.id;
 
     const slug = slugify(body.title) + "-" + nanoid(6);
 
@@ -328,6 +329,16 @@ export async function POST(req: NextRequest) {
         price: "0",
       });
     }
+
+    // Tell the admin bell a new event has been submitted to the platform.
+    await notifyPlatform({
+      type: "event_created",
+      title: `New event: ${event.title}`,
+      body: `${guard.user.name} created “${event.title}”${event.status === "published" ? " and published it" : " as a draft"}.`,
+      link: `/events/${event.slug}/manage`,
+      severity: "info",
+      meta: { eventId: event.id, organiserId: organiserId, status: event.status },
+    });
 
     return NextResponse.json({ event, success: true }, { status: 201 });
   } catch (error) {

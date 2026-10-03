@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { vendors } from "@/db/schema";
+import { events, vendors } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { badRequest, serverError } from "@/lib/server";
+import { requireEventAccess } from "@/lib/auth";
 
 /** PATCH /api/vendors/[id] — update status, fees, payments or contact details. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +13,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const [vendor] = await db.select().from(vendors).where(eq(vendors.id, id)).limit(1);
     if (!vendor) return badRequest("Vendor not found", 404);
+
+    /* Vendor fees and contacts belong to the event's organiser. */
+    const [vendorEvent] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, vendor.eventId)).limit(1);
+    const access = await requireEventAccess(vendorEvent?.slug ?? "");
+    if ("error" in access) return access.error;
 
     const [updated] = await db
       .update(vendors)
