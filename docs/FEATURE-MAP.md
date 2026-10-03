@@ -101,7 +101,7 @@ from large ticketing sites, reimplemented against UEB's own API:
   left-joins the organiser and organisation and (with `tiers=1`) attaches ticket
   types, next session date, session/time-slot counts and follower counts.
   Free/paid is a client-side refinement on the tier payload.
-- **Card anatomy** — 2:1 cover, `Tue, 9 Feb, 10 AM + 3 more`, `City · Venue` /
+- **Card anatomy** — 2:1 cover, `09/02/2027, 10 AM + 3 more`, `City · Venue` /
   `Online event`, `Free` / `From ₦35,000`, organiser + followers, Save and Share.
 - **Quick-look pop-out** — `EventDetailsModal` opens from the home page, the
   Discover grid and the "More events" rail; it nests `RegistrationModal` so
@@ -111,6 +111,24 @@ from large ticketing sites, reimplemented against UEB's own API:
   `ueb.saved.events`, broadcast on `ueb:saved-changed`.
 - **Covers** — `public/events/*.jpg`; a missing image falls back to a
   category gradient rather than an empty card.
+
+## Installable app (PWA)
+
+| Capability | Where it lives | Notes |
+|---|---|---|
+| Web app manifest | `src/app/manifest.ts` → `/manifest.webmanifest` | name, `standalone`, `start_url /?source=pwa`, shortcuts (Discover / Create / Check-in) |
+| App icons | `public/icons/icon-192.png`, `icon-512.png`, `maskable-512.png`, `apple-touch-icon.png`, `src/app/icon.png` | brand gradient + UEB wordmark |
+| Service worker | `public/sw.js` | fetch handler is required before Chrome fires `beforeinstallprompt`; network-first pages, cache-first static, `/api/*` untouched; `?dev=1` in development disables caching |
+| Install offer | `src/components/InstallAppPrompt.tsx` (mounted in `src/app/layout.tsx`) | appears **5 s** after open, withdraws after **10 s**, never shown when already installed, 7-day snooze on × |
+| Install state | `src/lib/pwa.ts` | `display-mode: standalone`, `appinstalled`, `localStorage ueb:pwa-installed`, `getInstalledRelatedApps()` |
+
+## Date convention
+
+All dates render **DD/MM/YYYY** (`17/11/2027`), local time, via the helpers in
+`src/lib/utils.ts` — `formatDate`, `formatDateTime`, `formatDateKey` (day keys),
+`formatDateStamp` (CSV cells), `eventDateShort`/`eventDateLine` (cards, event
+page). Times are 12-hour in the UI and 24-hour in exports; `<input type="date">`
+keeps the browser's ISO value and is only *displayed* through `formatDateKey()`.
 
 ## Product boundaries (deliberate)
 

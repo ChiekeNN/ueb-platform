@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,6 +8,16 @@ export const metadata: Metadata = {
   description: "Africa's Event Operating System. Create, manage, sell, verify and analyse events — all in one elegant platform.",
   keywords: ["events", "ticketing", "Nigeria", "Africa", "conference", "registration", "QR code"],
   authors: [{ name: "Unique Events Booking" }],
+  applicationName: "UEB",
+  // Manifest from `src/app/manifest.ts`; linked explicitly so installability
+  // never depends on the file convention alone.
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  // Installed on iOS: run full-screen and use the abbreviated title.
+  appleWebApp: { capable: true, title: "UEB", statusBarStyle: "default" },
   openGraph: {
     title: "UEB — Unique Events Booking",
     description: "Africa's Event Operating System",
@@ -33,7 +44,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Site-wide "Install UEB" offer — shows 5s after open, 10s on screen. */}
+        <InstallAppPrompt />
+      </body>
     </html>
   );
 }

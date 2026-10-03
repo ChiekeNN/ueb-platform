@@ -69,12 +69,54 @@ not run migrations for you.
 See [`docs/FEATURE-MAP.md`](docs/FEATURE-MAP.md) for how each capability from the
 product brief is implemented.
 
+## Installable app (PWA)
+
+UEB is installable — the browser's own "Install app" / "Add to Home Screen"
+route, plus an in-app offer that follows one deliberate schedule:
+
+| Behaviour | Where | Value |
+|---|---|---|
+| Offer appears after the app has been open this long | `src/lib/pwa.ts` | **5 seconds** |
+| Offer stays on screen, then withdraws by itself | `src/lib/pwa.ts` | **10 seconds** |
+| Hidden entirely once UEB is installed | `isAppInstalled()` | standalone mode, `appinstalled` event, `getInstalledRelatedApps()` |
+| "Not now" (× button) re-offers after | `snoozeInstallPrompt()` | 7 days |
+
+Files that make it work:
+
+- `src/app/manifest.ts` → `/manifest.webmanifest` — name, icons, `standalone`, shortcuts.
+- `public/sw.js` — service worker with a `fetch` handler (required before
+  Chrome/Edge fire `beforeinstallprompt`). Network-first for pages, cache-first
+  for static assets, never touches `/api/*`. In `next dev` it is registered as
+  `?dev=1`, which disables caching so a stale chunk can't shadow the dev server.
+- `public/icons/*` + `src/app/icon.png` — 192/512/maskable PNGs and the favicon.
+- `src/lib/pwa.ts` — the rules above, plus `registerServiceWorker()`.
+- `src/components/InstallAppPrompt.tsx` — the offer itself (mounted in the root
+  layout). On browsers with a native dialog the button opens it; on iOS Safari
+  it reveals Share → Add to Home Screen instead.
+
+## Date & time convention
+
+**Every date in the product is `DD/MM/YYYY`** — `17/11/2027`, padded, local time,
+with the year in full. Times stay 12-hour (`6:30 PM`) in the UI and 24-hour
+(`18:30`) in exports.
+
+Format through the helpers in `src/lib/utils.ts` rather than `toLocaleDateString`
+directly, so the convention can't drift:
+
+- `formatDate()` · `formatDateTime()` — display and ticket/print surfaces
+- `formatDateKey()` — day keys (`2027-11-17`) from timelines and date pickers
+- `formatDateStamp()` — timestamped CSV cells (`17/11/2027 18:30`)
+- `eventDateShort()` · `eventDateLine()` — cards and the event page headline
+
+`<input type="date">` values stay ISO (`YYYY-MM-DD`) — that is the browser's
+format, not ours; only render it through `formatDateKey()`.
+
 ## Discovery & event-page idiom
 
 Attendee-facing surfaces follow the layout conventions organisers' audiences
 already know from large ticketing sites, but every link stays inside UEB:
 
-- **Cards** carry a 2:1 cover, `Tue, 9 Feb, 10 AM + 3 more` date lines,
+- **Cards** carry a 2:1 cover, `09/02/2027, 10 AM + 3 more` date lines,
   `City · Venue` (or `Online event`), `Free` / `From ₦35,000`, the organising
   account with its follower count, and Save/Share actions.
 - **Click any event — home page, Discover grid or the "More events" rail — and

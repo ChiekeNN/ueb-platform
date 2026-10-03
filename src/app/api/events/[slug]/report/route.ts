@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { eventFeedback, vendors, payments, checkinLogs } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { badRequest, eventAnalytics, getEventBySlug, serverError } from "@/lib/server";
-import { toCSV } from "@/lib/utils";
+import { formatDateStamp, toCSV } from "@/lib/utils";
 
 /**
  * GET /api/events/[slug]/report
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
             Seat: r.seatLabel ?? "",
             Slot: r.slotLabel ?? "",
             CheckedIn: r.checkedIn ? "yes" : "no",
-            CheckedInAt: r.checkedInAt ? new Date(r.checkedInAt).toISOString() : "",
+            CheckedInAt: r.checkedInAt ? formatDateStamp(r.checkedInAt) : "",
           })),
         },
         sales: {
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
             Result: s.result,
             Method: s.method ?? "",
             Staff: s.staffName ?? "",
-            ScannedAt: new Date(s.scannedAt).toISOString(),
+            ScannedAt: formatDateStamp(s.scannedAt),
           })),
         },
         feedback: {
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
             Attendee: f.attendeeName ?? "",
             Rating: f.rating ?? "",
             Comment: f.comment ?? "",
-            SubmittedAt: new Date(f.submittedAt).toISOString(),
+            SubmittedAt: formatDateStamp(f.submittedAt),
           })),
         },
         vendors: {
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
             Fee: p.feeAmount ?? "0",
             Net: p.netAmount ?? "0",
             Status: p.status ?? "",
-            PaidAt: p.paidAt ? new Date(p.paidAt).toISOString() : "",
+            PaidAt: p.paidAt ? formatDateStamp(p.paidAt) : "",
           })),
         },
       };

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { EVENT_CATEGORIES, BANNER_COLORS, calculateUEBFee, formatCurrency } from "@/lib/utils";
+import { EVENT_CATEGORIES, BANNER_COLORS, calculateUEBFee, formatCurrency, formatDateKey } from "@/lib/utils";
 
 type TicketTier = {
   name: string; type: string; price: string; quantity: string;
@@ -587,7 +587,7 @@ export default function CreateEventPage() {
                 <div className="space-y-2">
                   {[
                     { icon: "📌", text: form.title || "Untitled Event" },
-                    form.startDate && { icon: "📅", text: `${form.startDate} at ${form.startTime}` },
+                    form.startDate && { icon: "📅", text: `${formatDateKey(form.startDate)} at ${form.startTime}` },
                     form.city && { icon: "📍", text: [form.venue, form.city].filter(Boolean).join(", ") },
                     { icon: "🎫", text: `${tiers.length} ticket type${tiers.length !== 1 ? "s" : ""}` },
                     form.type === "recurring" && { icon: "🔁", text: `${recurrence.count} sessions · ${recurrence.frequency}` },

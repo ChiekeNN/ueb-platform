@@ -11,7 +11,7 @@ import {
   releaseSeat,
   serverError,
 } from "@/lib/server";
-import { toCSV } from "@/lib/utils";
+import { formatDateStamp, toCSV } from "@/lib/utils";
 
 /** GET /api/events/[slug]/registrations — attendee roster for the organiser console (JSON or CSV). */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -54,10 +54,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           Payment: r.paymentStatus,
           AmountPaid: r.amountPaid ?? "0",
           CheckedIn: r.checkedIn ? "yes" : "no",
-          CheckedInAt: r.checkedInAt ? new Date(r.checkedInAt).toISOString() : "",
+          CheckedInAt: r.checkedInAt ? formatDateStamp(r.checkedInAt) : "",
           Seat: r.seatLabel ?? "",
           Slot: r.slotLabel ?? "",
-          RegisteredAt: new Date(r.createdAt).toISOString(),
+          RegisteredAt: formatDateStamp(r.createdAt),
         }))
       );
       return new NextResponse(csv || "No registrations yet", {

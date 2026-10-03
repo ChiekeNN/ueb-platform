@@ -2,7 +2,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateKey, formatTime } from "@/lib/utils";
 
 type TierSale = { id: string; name: string; type: string; price: number; quantity?: number | null; sold: number; paidCount: number; checkedIn: number; revenue: number; remaining?: number | null };
 type Timeline = { date: string; count: number }[];
@@ -185,7 +185,7 @@ export default function EventReportPage({ params }: { params: Promise<{ slug: st
             ) : (
               <div className="flex items-end gap-1.5" style={{ height: 140 }}>
                 {registrationTimeline.map(t => (
-                  <div key={t.date} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${t.date}: ${t.count}`}>
+                  <div key={t.date} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${formatDateKey(t.date)}: ${t.count}`}>
                     <span style={{ fontSize: "0.62rem", color: "var(--text-3)" }}>{t.count}</span>
                     <div style={{ width: "100%", height: `${Math.max(4, (t.count / maxRegistration) * 100)}%`, background: "linear-gradient(180deg,var(--violet-hi),var(--violet))", borderRadius: 6 }} />
                   </div>
@@ -201,7 +201,7 @@ export default function EventReportPage({ params }: { params: Promise<{ slug: st
             ) : (
               <div className="flex items-end gap-1.5" style={{ height: 140 }}>
                 {checkinTimeline.map(t => (
-                  <div key={t.date} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${t.date}: ${t.count}`}>
+                  <div key={t.date} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${formatDateKey(t.date)}: ${t.count}`}>
                     <span style={{ fontSize: "0.62rem", color: "var(--text-3)" }}>{t.count}</span>
                     <div style={{ width: "100%", height: `${Math.max(4, (t.count / maxCheckin) * 100)}%`, background: "linear-gradient(180deg,#4ADE80,#059669)", borderRadius: 6 }} />
                   </div>
