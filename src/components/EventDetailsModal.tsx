@@ -5,6 +5,7 @@ import { EventCover, type EventCardData } from "@/components/EventCard";
 import RegistrationModal, { type RegEvent, type RegSlot, type RegTier } from "@/components/RegistrationModal";
 import {
   eventDateLine,
+  externalTicketing,
   formatCurrency,
   formatDuration,
   formatLabel,
@@ -104,6 +105,8 @@ export default function EventDetailsModal({
   const price = priceSummaryLabel(tiers.map((t) => ({ price: t.price, type: t.type })));
   const saved = isSaved(slug);
   const soldOut = !!event?.soldOut || (!!event?.capacity && (event.totalRegistrations ?? 0) >= event.capacity);
+  /** When set, the CTA links to the organiser's own checkout instead of opening registration. */
+  const external = externalTicketing(event?.externalTicketUrl, event?.ticketProvider);
   const coverEvent: EventCardData = {
     id: event?.id ?? initial?.id ?? slug,
     title: event?.title ?? initial?.title ?? "",
@@ -251,16 +254,34 @@ export default function EventDetailsModal({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: "0.7rem 1.4rem" }}
-                      onClick={() => setRegisterOpen(true)}
-                    >
-                      {soldOut && event.waitlistEnabled ? "Join waitlist" : soldOut ? "Sold out" : "Get tickets"}
-                    </button>
+                    {external ? (
+                      <a
+                        href={external.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="btn btn-primary"
+                        style={{ padding: "0.7rem 1.4rem" }}
+                      >
+                        Get tickets on {external.label}
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn-primary"
+                        style={{ padding: "0.7rem 1.4rem" }}
+                        onClick={() => setRegisterOpen(true)}
+                      >
+                        {soldOut && event.waitlistEnabled ? "Join waitlist" : soldOut ? "Sold out" : "Get tickets"}
+                      </button>
+                    )}
                     <Link href={`/events/${slug}`} className="btn btn-outline">Full details</Link>
                   </div>
                 </div>
+
+                {external && (
+                  <p style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: "-0.75rem", marginBottom: "1.5rem", lineHeight: 1.6 }}>
+                    🔗 Ticketing and payment handled by {external.label} — you&rsquo;ll open their site in a new tab.
+                  </p>
+                )}
 
                 {/* Overview */}
                 {event.description && (

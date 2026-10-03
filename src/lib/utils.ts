@@ -107,6 +107,41 @@ export function formatLabel(format?: string | null): string {
   return EVENT_FORMATS.find((f) => f.value === format)?.label ?? "In-person";
 }
 
+export type ExternalTicketing = { url: string; label: string };
+
+/**
+ * Resolves an event's external ticketing handoff.
+ *
+ * Returns `null` when the event has no usable external checkout, which means the
+ * caller keeps the in-app registration flow. Only `http`/`https` URLs are
+ * accepted — an organiser-supplied `javascript:` or `data:` URL is rejected so it
+ * can never be rendered into an anchor's `href`.
+ *
+ * The label prefers the organiser's `ticketProvider` name and falls back to a
+ * tidied hostname, so "https://tix.africa/e/xyz" reads as "tix.africa".
+ */
+export function externalTicketing(
+  url?: string | null,
+  provider?: string | null,
+): ExternalTicketing | null {
+  const raw = url?.trim();
+  if (!raw) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+
+  const name = provider?.trim();
+  if (name) return { url: parsed.toString(), label: name };
+
+  const host = parsed.hostname.replace(/^www\./, "");
+  return { url: parsed.toString(), label: host || parsed.hostname };
+}
+
 /** Relative countdown used on the floating action bar: "Starts in 3 days". */
 export function timeUntil(date: Date | string | null | undefined): string {
   if (!date) return "";

@@ -12,7 +12,8 @@ import {
   type RecurrenceRule,
 } from "@/db/schema";
 import { eq, desc, asc, ilike, or, sql, and, gte, lte, inArray } from "drizzle-orm";
-import { expandRecurrence, expandSlots, seatLabels, slugify } from "@/lib/utils";
+import { expandRecurrence, expandSlots, seatLabels, slugify, externalTicketing } from "@/lib/utils";
+import { badRequest } from "@/lib/server";
 import { nanoid } from "nanoid";
 
 /** GET /api/events — discovery feed with Eventbrite-style facets. */
@@ -164,6 +165,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    /* Reject a malformed external ticket URL rather than silently dropping it. */
+    if (body.externalTicketUrl && !externalTicketing(body.externalTicketUrl)) {
+      return badRequest("externalTicketUrl must be a valid http or https URL");
+    }
+
     // Ensure organiser exists or create a demo one
     let organiserId = body.organiserId;
     if (!organiserId) {
@@ -214,6 +220,9 @@ export async function POST(req: NextRequest) {
       waitlistEnabled: !!body.waitlistEnabled,
       surveyUrl: body.surveyUrl ?? null,
       postEventMessage: body.postEventMessage ?? null,
+      // Validated: only http(s) survives, so a `javascript:` URL can never be stored.
+      externalTicketUrl: externalTicketing(body.externalTicketUrl)?.url ?? null,
+      ticketProvider: body.ticketProvider?.toString().trim().slice(0, 60) || null,
     }).returning();
 
     /* ── Recurring schedule: expand the rule into dated occurrences ── */
