@@ -595,7 +595,7 @@ export default async function HomePage() {
               </div>
             </div>
             {[
-              { heading: "Platform", links: [["Discover Events", "/events"], ["Create Event", "/events/create"], ["Dashboard", "/dashboard"], ["Check-In", "/checkin"]] },
+              { heading: "Platform", links: [["Discover Events", "/events"], ["Create Event", "/events/create"], ["Check-In", "/checkin"]] },
               { heading: "Pricing", links: [["Free Events", "/pricing"], ["Paid Tickets", "/pricing"], ["Enterprise", "/pricing"], ["API Access", "/pricing"]] },
               { heading: "Event Types", links: [["Conferences", "/events"], ["Workshops", "/events"], ["Church Events", "/events"], ["Corporate", "/events"], ["University", "/events"]] },
             ].map(col => (
