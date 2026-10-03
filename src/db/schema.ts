@@ -143,6 +143,14 @@ export const events = pgTable("events", {
   /** FAQ accordion on the event page. */
   faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]),
   ageRestriction: varchar("age_restriction", { length: 50 }),
+  /**
+   * External ticketing handoff. When set, the "Get tickets" CTAs become a link
+   * to the organiser's own checkout instead of opening the in-app registration
+   * flow — UEB stays the discovery layer and never touches the payment.
+   */
+  externalTicketUrl: text("external_ticket_url"),
+  /** Display name for the provider behind `externalTicketUrl`, e.g. "Tix Africa". */
+  ticketProvider: varchar("ticket_provider", { length: 60 }),
   organiserId: uuid("organiser_id").references(() => users.id),
   organisationId: uuid("organisation_id").references(() => organisations.id),
   requiresApproval: boolean("requires_approval").default(false),

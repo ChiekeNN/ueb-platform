@@ -41,6 +41,9 @@ export type RegEvent = {
   totalRegistrations?: number | null;
   customConfirmationMessage?: string | null;
   customQuestions?: { id: string; label: string; type: string; required: boolean; options?: string[] }[] | null;
+  /** External ticketing handoff — when set, CTAs link out instead of opening this modal. */
+  externalTicketUrl?: string | null;
+  ticketProvider?: string | null;
 };
 
 export type RegResult = {

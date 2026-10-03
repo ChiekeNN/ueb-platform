@@ -16,6 +16,7 @@ import {
   waitlistEntries,
 } from "@/db/schema";
 import { asc, eq, sql } from "drizzle-orm";
+import { externalTicketing } from "@/lib/utils";
 
 export async function GET(
   _req: NextRequest,
@@ -127,6 +128,14 @@ export async function PATCH(
     const { slug } = await params;
     const body = await req.json();
 
+    /* Reject a malformed external ticket URL rather than silently dropping it. */
+    if (body.externalTicketUrl && !externalTicketing(body.externalTicketUrl)) {
+      return NextResponse.json(
+        { error: "externalTicketUrl must be a valid http or https URL" },
+        { status: 400 }
+      );
+    }
+
     const [event] = await db.select().from(events).where(eq(events.slug, slug)).limit(1);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -150,6 +159,12 @@ export async function PATCH(
         ...(body.refundPolicy !== undefined ? { refundPolicy: body.refundPolicy } : {}),
         ...(body.surveyUrl !== undefined ? { surveyUrl: body.surveyUrl } : {}),
         ...(body.postEventMessage !== undefined ? { postEventMessage: body.postEventMessage } : {}),
+        ...(body.externalTicketUrl !== undefined
+          ? { externalTicketUrl: externalTicketing(body.externalTicketUrl)?.url ?? null }
+          : {}),
+        ...(body.ticketProvider !== undefined
+          ? { ticketProvider: body.ticketProvider?.toString().trim().slice(0, 60) || null }
+          : {}),
         ...(body.recurrenceRule !== undefined ? { recurrenceRule: body.recurrenceRule } : {}),
         ...(body.customConfirmationMessage !== undefined ? { customConfirmationMessage: body.customConfirmationMessage } : {}),
         startDate: body.startDate ? new Date(body.startDate) : event.startDate,

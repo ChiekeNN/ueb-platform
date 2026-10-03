@@ -9,6 +9,7 @@ import {
   calculateUEBFee,
   describeRecurrence,
   eventDateLine,
+  externalTicketing,
   formatCurrency,
   formatDate,
   formatDuration,
@@ -183,6 +184,8 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
   const catIcon = CAT_ICONS[event.category ?? "other"] ?? "🎪";
   const saved = isSaved(slug);
   const soldOut = !!event.soldOut || (!!event.capacity && (event.totalRegistrations ?? 0) >= event.capacity);
+  /** When set, every "Get tickets" CTA links out instead of opening the registration modal. */
+  const external = externalTicketing(event.externalTicketUrl, event.ticketProvider);
   const isPast = event.endDate ? new Date(event.endDate) < new Date() : false;
   const sessionCount = workspace?.occurrences.length ?? 0;
   const openSlots = (workspace?.slots ?? []).filter((s) => s.isActive !== false);
@@ -224,9 +227,21 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                   <path d="M8 10.5V2m0 0L5 5m3-3l3 3M3 9.5V13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
-              <button className="btn btn-primary btn-sm" onClick={() => openRegister()} disabled={soldOut && !event.waitlistEnabled} style={{ padding: "0.55rem 1.2rem" }}>
-                {soldOut ? (event.waitlistEnabled ? "Join waitlist" : "Sold out") : "Get tickets"}
-              </button>
+              {external ? (
+                <a
+                  href={external.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: "0.55rem 1.2rem" }}
+                >
+                  Get tickets on {external.label}
+                </a>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={() => openRegister()} disabled={soldOut && !event.waitlistEnabled} style={{ padding: "0.55rem 1.2rem" }}>
+                  {soldOut ? (event.waitlistEnabled ? "Join waitlist" : "Sold out") : "Get tickets"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -422,7 +437,9 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
               </div>
             )}
 
-            {openSlots.length > 0 && (
+            {/* Appointment windows are managed by the organiser's own platform once
+                ticketing is handed off, so hide them rather than showing stale slots. */}
+            {!external && openSlots.length > 0 && (
               <div className="mt-8">
                 <h2 className="heading-2 mb-1" style={{ color: "var(--text-1)", fontSize: "1.15rem" }}>Time slots</h2>
                 <p style={{ fontSize: "0.82rem", color: "var(--text-3)", marginBottom: "1rem" }}>
@@ -550,6 +567,8 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                   {event.status && <span className={`badge ${getStatusColor(event.status)}`} style={{ fontSize: "0.64rem" }}>{event.status}</span>}
                 </div>
 
+                {/* Tier steppers are only ours to manage when UEB runs the checkout. */}
+                {!external && (
                 <div className="space-y-2 mb-4">
                   {tiers.map((t) => {
                     const tPrice = parseFloat(String(t.price ?? 0));
@@ -621,8 +640,9 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                     <p style={{ fontSize: "0.82rem", color: "var(--text-3)" }}>Ticket types are being finalised.</p>
                   )}
                 </div>
+                )}
 
-                {cartCount > 0 && (
+                {!external && cartCount > 0 && (
                   <div className="p-3.5 rounded-xl mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
                     <div className="flex items-center justify-between">
                       <span style={{ fontSize: "0.82rem", color: "var(--text-2)" }}>{cartCount} ticket{cartCount === 1 ? "" : "s"}</span>
@@ -631,6 +651,17 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                   </div>
                 )}
 
+                {external ? (
+                  <a
+                    href={external.url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="btn btn-primary w-full justify-center"
+                    style={{ padding: "0.85rem" }}
+                  >
+                    Get tickets on {external.label}
+                  </a>
+                ) : (
                 <button
                   className="btn btn-primary w-full justify-center"
                   style={{ padding: "0.85rem" }}
@@ -642,13 +673,16 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
                 >
                   {soldOut ? (event.waitlistEnabled ? "Join the waitlist" : "Sold out") : cartCount > 0 ? `Get ${cartCount} ticket${cartCount === 1 ? "" : "s"}` : "Get tickets"}
                 </button>
+                )}
 
                 <p style={{ fontSize: "0.72rem", color: "var(--text-3)", textAlign: "center", marginTop: "0.7rem", lineHeight: 1.6 }}>
-                  {event.requiresApproval ? "⏳ Approved before tickets are issued · " : "✅ Instant confirmation · "}
-                  {event.feeAbsorbedByOrganiser ? "fees included" : "8% + ₦100 fee shown at checkout"}
+                  {external
+                    ? <>🔗 Ticketing and payment handled by {external.label} — you&rsquo;ll open their site in a new tab.</>
+                    : <>{event.requiresApproval ? "⏳ Approved before tickets are issued · " : "✅ Instant confirmation · "}
+                      {event.feeAbsorbedByOrganiser ? "fees included" : "8% + ₦100 fee shown at checkout"}</>}
                 </p>
 
-                {event.capacity && (
+                {!external && event.capacity && (
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-1.5">
                       <span style={{ fontSize: "0.74rem", color: "var(--text-3)" }}>

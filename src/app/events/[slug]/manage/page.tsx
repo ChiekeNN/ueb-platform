@@ -21,6 +21,7 @@ type EventT = {
   venue?: string | null; city?: string | null; capacity?: number | null;
   requiresApproval?: boolean | null; seatSelectionEnabled?: boolean | null;
   waitlistEnabled?: boolean | null; surveyUrl?: string | null; postEventMessage?: string | null;
+  externalTicketUrl?: string | null; ticketProvider?: string | null;
   completedAt?: string | null; totalRegistrations?: number | null; totalRevenue?: string | null;
   recurrenceRule?: RecurrenceRuleT | null; customQuestions?: { id: string; label: string; type: string }[] | null;
 };
@@ -324,6 +325,8 @@ function Overview({ data, api, run, busy }: { data: ConsoleData; api: ApiFn; run
   const { event, stats, workspace } = data;
   const [seatMode, setSeatMode] = useState(!!event.seatSelectionEnabled);
   const [waitlistMode, setWaitlistMode] = useState(!!event.waitlistEnabled);
+  const [extUrl, setExtUrl] = useState(event.externalTicketUrl ?? "");
+  const [extProvider, setExtProvider] = useState(event.ticketProvider ?? "");
 
   const pendingCount = stats.pending;
 
@@ -408,6 +411,57 @@ function Overview({ data, api, run, busy }: { data: ConsoleData; api: ApiFn; run
                   }}
                 />
               </label>
+
+              {/* ── External ticketing handoff ── */}
+              <div className="p-3.5 rounded-xl" style={{ background: "var(--surface)" }}>
+                <span className="block font-bold" style={{ fontSize: "0.86rem", color: "var(--text-1)" }}>
+                  Sell on your own ticketing platform
+                </span>
+                <span className="block mb-3" style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+                  Send guests to your own checkout instead of UEB&rsquo;s. UEB keeps the listing, photos and
+                  details; ticketing and payment stay on your platform.
+                </span>
+                <div className="space-y-2">
+                  <input
+                    className="input"
+                    placeholder="https://tix.africa/events/your-event"
+                    value={extUrl}
+                    onChange={(e) => setExtUrl(e.target.value)}
+                    style={{ fontSize: "0.82rem" }}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Provider name shown to guests, e.g. Tix Africa"
+                    value={extProvider}
+                    onChange={(e) => setExtProvider(e.target.value)}
+                    maxLength={60}
+                    style={{ fontSize: "0.82rem" }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-2.5">
+                  <button
+                    className="btn btn-outline btn-sm"
+                    disabled={busy === "external-ticketing"}
+                    onClick={() => run("external-ticketing", async () => {
+                      await api(`/api/events/${event.slug}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({
+                          externalTicketUrl: extUrl.trim(),
+                          ticketProvider: extProvider.trim(),
+                        }),
+                      });
+                      return extUrl.trim() ? "Guests will be sent to your checkout" : "UEB checkout restored";
+                    })}
+                  >
+                    Save link
+                  </button>
+                  {extUrl.trim() && (
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
+                      🔗 Guests leave UEB to pay
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <div className="flex flex-wrap gap-2 pt-1">
                 <button

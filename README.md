@@ -31,6 +31,26 @@ curl -X POST http://localhost:3000/api/seed
 
 …or press **Load Demo Data** on the home page.
 
+## Deploying
+
+Set `DATABASE_URL` in the host's environment (Vercel → Project → Settings →
+Environment Variables) pointing at a hosted Postgres such as Neon, Supabase or
+Vercel Postgres.
+
+The build no longer needs it: `src/db/index.ts` creates the pool on first use,
+so a missing variable surfaces at the first query rather than failing the build.
+The app still will not serve data without it.
+
+`drizzle.config.ts` reads `DATABASE_URL`, so the same migration command works
+against any database:
+
+```bash
+DATABASE_URL="postgresql://…/production_db" npx drizzle-kit push --force
+```
+
+Run that once from your machine against the production database — the host does
+not run migrations for you.
+
 ## Product surfaces
 
 | Route | Purpose |
