@@ -32,11 +32,9 @@ export default function Navbar() {
   /** Links available to this visitor, including the role-gated ones. */
   const links = [
     ...NAV_LINKS,
-    ...(canSeeDashboard ? [{ href: "/dashboard", label: "Dashboard" }] : []),
     ...(signedIn && !canSeeDashboard
       ? [{ href: "/become-organiser", label: session.next === "pending" ? "Application status" : "Sell tickets" }]
       : []),
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   const signOut = async () => {
