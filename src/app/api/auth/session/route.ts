@@ -10,6 +10,14 @@ import {
 import { serverError } from "@/lib/server";
 
 /**
+ * "Who am I?" is per-visitor and changes the moment they sign in or out, so it
+ * must never be cached by a browser or an intermediary — a cached signed-in
+ * answer is exactly how a signed-out visitor ends up being offered the
+ * Dashboard.
+ */
+const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate, private" };
+
+/**
  * GET /api/auth/session — who am I?
  *
  * Powers the navbar (which links exist), the dashboard gate and the
@@ -21,14 +29,17 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) {
-      return NextResponse.json({
-        user: null,
-        isAdmin: false,
-        isOrganiser: false,
-        canAccessDashboard: false,
-        next: "signin",
-        application: null,
-      });
+      return NextResponse.json(
+        {
+          user: null,
+          isAdmin: false,
+          isOrganiser: false,
+          canAccessDashboard: false,
+          next: "signin",
+          application: null,
+        },
+        { headers: NO_STORE }
+      );
     }
 
     const isAdmin = isPlatformAdmin(user);
@@ -56,7 +67,7 @@ export async function GET() {
             createdAt: application.createdAt.toISOString(),
           }
         : null,
-    });
+    }, { headers: NO_STORE });
   } catch (error) {
     return serverError(error, "Could not read your session");
   }

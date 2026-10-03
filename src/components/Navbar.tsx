@@ -25,9 +25,16 @@ export default function Navbar() {
   const session = useSession();
 
   const user = session.user;
-  const signedIn = !!user;
-  const canSeeDashboard = session.canAccessDashboard;
-  const isAdmin = session.isAdmin;
+  /**
+   * Nothing role-gated is rendered until the session has actually been read,
+   * and every privileged flag also requires a signed-in user. Without this the
+   * navbar briefly (or permanently, on a stale/cached session response) offered
+   * Dashboard to a visitor who is not signed in.
+   */
+  const ready = !session.loading;
+  const signedIn = ready && !!user;
+  const canSeeDashboard = signedIn && session.canAccessDashboard;
+  const isAdmin = signedIn && session.isAdmin;
 
   /** Links available to this visitor, including the role-gated ones. */
   const links = [
@@ -38,10 +45,10 @@ export default function Navbar() {
   ];
 
   const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     setMenuOpen(false);
     setOpen(false);
-    await session.refresh();
+    // Provider clears the local session first, then tells the server.
+    await session.signOut();
     router.push("/");
   };
 

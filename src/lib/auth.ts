@@ -104,9 +104,21 @@ export async function setSessionCookie(token: string): Promise<void> {
   });
 }
 
+/**
+ * Delete the session cookie. The attributes must mirror `setSessionCookie` —
+ * browsers key a cookie on name + domain + path, and a mismatched deletion
+ * silently leaves the old cookie in place, which is how a "signed out" visitor
+ * keeps being recognised as signed in.
+ */
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  jar.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 function toSessionUser(row: {

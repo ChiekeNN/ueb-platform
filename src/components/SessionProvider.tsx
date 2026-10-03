@@ -24,10 +24,17 @@ const EMPTY: SessionResponse = {
   application: null,
 };
 
-const SessionContext = createContext<SessionState & { refresh: () => Promise<SessionResponse> }>({
+type SessionApi = {
+  refresh: () => Promise<SessionResponse>;
+  /** Clear the local session and ask the server to drop it too. */
+  signOut: () => Promise<void>;
+};
+
+const SessionContext = createContext<SessionState & SessionApi>({
   ...EMPTY,
   loading: true,
   refresh: async () => EMPTY,
+  signOut: async () => {},
 });
 
 export default function SessionProvider({ children }: { children: ReactNode }) {
@@ -37,8 +44,10 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/auth/session", { cache: "no-store" });
       const data = (await res.json()) as SessionResponse;
-      setState({ ...EMPTY, ...data, loading: false });
-      return data;
+      // `EMPTY` is spread first so a response that omits a field (or an error
+      // payload) can never leave a previous user's role flags behind.
+      setState({ ...EMPTY, ...data, user: data.user ?? null, loading: false });
+      return { ...EMPTY, ...data, user: data.user ?? null } as SessionResponse;
     } catch {
       // Network hiccup: treat as signed out rather than blocking the UI.
       setState({ ...EMPTY, loading: false });
@@ -46,11 +55,30 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * Sign out. The local session is dropped *first*, optimistically, so the
+   * navbar can never keep rendering signed-in links (Dashboard, Admin, Create
+   * Event) while the request is in flight or if it fails outright. Only a
+   * failed request re-reads the server, because then the cookie may still be
+   * live and pretending otherwise would be a lie.
+   */
+  const signOut = useCallback(async () => {
+    setState({ ...EMPTY, loading: false });
+    let ok = false;
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) await refresh();
+  }, [refresh]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const value = useMemo(() => ({ ...state, refresh }), [state, refresh]);
+  const value = useMemo(() => ({ ...state, refresh, signOut }), [state, refresh, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
