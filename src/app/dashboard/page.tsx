@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/components/SessionProvider";
 import { formatCurrency, formatDate, getStatusColor, EVENT_CATEGORIES } from "@/lib/utils";
 
 type Event = {
@@ -26,6 +28,8 @@ const STATUS_TABS = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const session = useSession();
   const [events, setEvents]   = useState<Event[]>([]);
   const [sel, setSel]         = useState<Event | null>(null);
   const [regs, setRegs]       = useState<Reg[]>([]);
@@ -40,10 +44,21 @@ export default function DashboardPage() {
     setTimeout(() => setToast(null), 2800);
   };
 
+  /**
+   * Access gate. The dashboard is for approved organisers and platform admins:
+   *   • signed out  → sign in, then come straight back here
+   *   • attendee    → the "become an organiser" screen below
+   *   • pending     → waiting-for-approval screen, no event data is even fetched
+   */
+  useEffect(() => {
+    if (session.loading) return;
+    if (!session.user) router.replace("/login?next=/dashboard");
+  }, [session.loading, session.user, router]);
+
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/events?status=all");
+      const res = await fetch("/api/events?mine=1&status=all");
       const data = await res.json();
       setEvents(data.events ?? []);
       if (data.events?.length > 0 && !sel) setSel(data.events[0]);
@@ -51,7 +66,10 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => {
+    if (session.loading || !session.canAccessDashboard) return;
+    void fetchEvents();
+  }, [session.loading, session.canAccessDashboard, fetchEvents]);
 
   useEffect(() => {
     if (!sel) return;
@@ -104,6 +122,91 @@ export default function DashboardPage() {
   };
 
   const attendRate = stats.approved > 0 ? Math.round((stats.checkedIn / stats.approved) * 100) : 0;
+
+  /* ── Access screens ──────────────────────────────────────────
+     The console below is only rendered for approved organisers and platform
+     admins. Everyone else gets a clear next step instead of an empty console. */
+  if (session.loading || !session.user) {
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="max-w-lg mx-auto px-5 pt-32 text-center" style={{ color: "var(--text-3)" }}>
+          {session.loading ? "Checking your access…" : "Taking you to sign in…"}
+        </div>
+      </div>
+    );
+  }
+
+  if (!session.canAccessDashboard) {
+    const pending = session.next === "pending";
+    const declined = session.next === "rejected";
+    return (
+      <div style={{ background: "var(--surface)", minHeight: "100dvh" }}>
+        <Navbar />
+        <div className="max-w-2xl mx-auto px-5 pt-28 pb-16">
+          <div className="card p-8 anim-fadeUp">
+            <div className="flex items-start gap-4">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                style={{ background: pending ? "#FEF3C7" : declined ? "#FEE2E2" : "var(--violet-bg)" }}
+              >
+                {pending ? "⏳" : declined ? "📝" : "🎪"}
+              </div>
+              <div>
+                <h1 className="heading-2 mb-1" style={{ fontSize: "1.35rem" }}>
+                  {pending
+                    ? "Your organiser application is being reviewed"
+                    : declined
+                      ? "Your organiser application was declined"
+                      : "The dashboard is for event organisers"}
+                </h1>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+                  {pending
+                    ? `Thanks, ${session.user.name.split(" ")[0]}. A UEB admin reviews every organiser before events go live — you'll get a notification the moment there's a decision.`
+                    : declined
+                      ? "You can update your details and apply again — approvals are usually decided within a day."
+                      : "Browsing events and registering as an attendee stays open to everyone. To publish and manage your own events, apply for an organiser account."}
+                </p>
+              </div>
+            </div>
+
+            {session.application && (
+              <div className="mt-6 rounded-2xl p-5 space-y-2.5" style={{ background: "var(--surface)" }}>
+                <p className="label-caps" style={{ color: "var(--text-3)" }}>Your application</p>
+                <div className="flex items-center justify-between gap-4">
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-3)", fontWeight: 600 }}>Organising as</span>
+                  <span style={{ fontSize: "0.84rem", color: "var(--text-1)", fontWeight: 700 }}>{session.application.organisationName}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-3)", fontWeight: 600 }}>Submitted</span>
+                  <span style={{ fontSize: "0.84rem", color: "var(--text-1)", fontWeight: 700 }}>{formatDate(session.application.createdAt)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-3)", fontWeight: 600 }}>Status</span>
+                  <span className="badge" style={{ fontSize: "0.62rem", background: session.application.status === "pending" ? "#FEF3C7" : "#FEE2E2", color: session.application.status === "pending" ? "#92400E" : "#991B1B" }}>
+                    {session.application.status}
+                  </span>
+                </div>
+                {session.application.reviewNote && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-2)", lineHeight: 1.6 }}>
+                    Admin note: “{session.application.reviewNote}”
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <Link href="/become-organiser" className="btn btn-primary justify-center">
+                {pending ? "View application status" : declined ? "Apply again" : "Become an organiser"}
+              </Link>
+              <Link href="/events" className="btn btn-outline justify-center">Browse events</Link>
+              <Link href="/notifications" className="btn btn-ghost justify-center">Notifications</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background:"var(--surface)", minHeight:"100dvh" }}>

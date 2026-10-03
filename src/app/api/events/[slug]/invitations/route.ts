@@ -4,6 +4,7 @@ import { invitations } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { badRequest, getEventBySlug, logMessage, serverError } from "@/lib/server";
 import { generateInvitationCode } from "@/lib/utils";
+import { requireEventAccess } from "@/lib/auth";
 
 type InviteInput = {
   name?: string;
@@ -18,8 +19,13 @@ type InviteInput = {
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const rows = await db
       .select()
@@ -48,8 +54,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const guests: InviteInput[] = Array.isArray(body.guests) ? body.guests : [];
@@ -103,8 +114,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const ids: string[] = body.ids ?? (body.id ? [body.id] : []);
@@ -149,8 +165,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const url = new URL(req.url);
     const single = url.searchParams.get("id");

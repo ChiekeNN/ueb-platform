@@ -4,6 +4,7 @@ import { events, registrations, ticketTiers, eventSlots, waitlistEntries, paymen
 import { and, eq, sql } from "drizzle-orm";
 import { generatePaymentReference, generateTicketNumber, feeBreakdown } from "@/lib/utils";
 import { badRequest, assignSeat, findInvitation, serverError } from "@/lib/server";
+import { notifyEvent } from "@/lib/notifications";
 import QRCode from "qrcode";
 import { randomUUID } from "crypto";
 
@@ -232,6 +233,18 @@ export async function POST(req: NextRequest) {
     }
 
     const fresh = canIssueTicket ? (await db.select().from(registrations).where(eq(registrations.id, registration.id)).limit(1))[0] : registration;
+
+    // Ring the organiser's bell (and the admin feed) for every new registration.
+    await notifyEvent(eventId, {
+      type: "registration",
+      title: isGroup
+        ? `${created.length} seats booked — ${registration.attendeeName}`
+        : `New registration — ${registration.attendeeName}`,
+      body: `${registration.attendeeName} registered${tier?.name ? ` for ${tier.name}` : ""} (${paymentStatus}).`,
+      link: `/events/${event?.slug ?? ""}/manage`,
+      severity: requiresApproval ? "warning" : "success",
+      meta: { registrationId: registration.id, attendeeEmail: registration.attendeeEmail, quantity: created.length },
+    });
 
     return NextResponse.json(
       {

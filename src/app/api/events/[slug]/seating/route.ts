@@ -4,13 +4,19 @@ import { events, registrations, seatingSections, seats } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { assignSeat, badRequest, getEventBySlug, releaseSeat, serverError } from "@/lib/server";
 import { seatLabels } from "@/lib/utils";
+import { requireEventAccess } from "@/lib/auth";
 
 /** GET /api/events/[slug]/seating — sections, seats and the seating plan. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const sections = await db
       .select()
@@ -65,8 +71,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const name = (body.name ?? "").trim();
@@ -120,8 +131,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const action = body.action ?? "assign";
@@ -206,8 +222,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return badRequest("Section id is required");

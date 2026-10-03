@@ -122,6 +122,25 @@ from large ticketing sites, reimplemented against UEB's own API:
 | Install offer | `src/components/InstallAppPrompt.tsx` (mounted in `src/app/layout.tsx`) | appears **5 s** after open, withdraws after **10 s**, never shown when already installed, 7-day snooze on × |
 | Install state | `src/lib/pwa.ts` | `display-mode: standalone`, `appinstalled`, `localStorage ueb:pwa-installed`, `getInstalledRelatedApps()` |
 
+## Accounts & approval workflow
+
+| Capability | Where it lives | Notes |
+|---|---|---|
+| Sign up / sign in / sign out | `/signup`, `/login`, `src/lib/auth.ts`, `POST /api/auth/{signup,login,logout}` | scrypt hashes, SHA-256-hashed session tokens, 30-day HTTP-only cookie |
+| Session state | `GET /api/auth/session` + `src/components/SessionProvider.tsx` | `isAdmin`, `isOrganiser`, `canAccessDashboard`, `next` |
+| Apply to organise | `/become-organiser` → `POST /api/organiser-applications` | sets `organiser_status = pending`, rings the admin bell; re-apply allowed after a decline |
+| Approve / decline organisers | `/admin → Applications` → `PATCH /api/organiser-applications/[id]` | platform admin only; approve flips `role = event_owner` + `organiser_status = approved` and notifies the applicant |
+| Dashboard gating | `src/app/dashboard/page.tsx`, `src/app/events/create/page.tsx` | signed-out → `/login?next=…`; attendees & pending applicants get a status screen instead of the console |
+| "My events" | `GET /api/events?mine=1` | answered from the session; admins see the whole platform |
+| Event-level authorisation | `requireEventAccess()` in `src/lib/auth.ts` | applied to the roster, seating, vendors, comms, reports, invitations, post-event, tiers/slots/occurrence writes, event PATCH/DELETE and registration PATCH |
+| Notification bell | `src/components/NotificationBell.tsx`, `src/app/notifications/page.tsx` | admins get the platform stream (applications, signups, events, registrations, payments, refunds); organisers get their own events |
+| Notification store | `notifications` table, `src/lib/notifications.ts` | `user_id IS NULL` + `scope = 'platform'` addresses all admins; personal rows carry a user id |
+
+The public site stays open: discovery, event pages, registration, checkout and
+the venue check-in desk work without an account. Only *organising* requires
+approval — which is what `POST /api/events` enforces (403 for anyone who is not
+an admin or an approved organiser).
+
 ## Date convention
 
 All dates render **DD/MM/YYYY** (`17/11/2027`), local time, via the helpers in

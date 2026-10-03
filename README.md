@@ -63,7 +63,11 @@ not run migrations for you.
 | `/events/[slug]/manage` | **Organiser console** — overview, attendees, tickets, invitations, schedule & slots, seating, vendors, comms, reports, post-event |
 | `/events/[slug]/report` | Full event report with CSV exports |
 | `/checkin` | Venue check-in desk (QR / ticket number verification) |
-| `/dashboard` | Organiser portfolio, approvals and quick actions |
+| `/login` · `/signup` | Accounts — email + password, scrypt hashes, HTTP-only session cookie |
+| `/become-organiser` | Organiser application + its pending / declined / approved states |
+| `/dashboard` | **Approved organisers and admins only** — the organiser's own portfolio, attendee approvals, quick actions |
+| `/admin` | **Platform admins only** — the organiser approval queue, platform stats and the notification feed |
+| `/notifications` | Full notification history (platform-wide for admins, own-events for organisers) |
 | `/pricing` | Transparent pricing — free events free, 8% + ₦100 per paid ticket |
 
 See [`docs/FEATURE-MAP.md`](docs/FEATURE-MAP.md) for how each capability from the
@@ -93,6 +97,67 @@ Files that make it work:
 - `src/components/InstallAppPrompt.tsx` — the offer itself (mounted in the root
   layout). On browsers with a native dialog the button opens it; on iOS Safari
   it reveals Share → Add to Home Screen instead.
+
+## Accounts, organiser approval & notifications
+
+**The dashboard is never public.** It is not in the menu for a signed-out
+visitor, and `/dashboard` and `/admin` both bounce to `/login?next=…` without a
+session. Only two kinds of account get in:
+
+| Who | Sees | How they get there |
+|---|---|---|
+| **Platform admin** | `/admin` (the approval queue, platform stats) and every event in `/dashboard` | Seeded — `admin@ueb.ng` |
+| **Approved organiser** | `/dashboard`, their own events only | Applies, an admin approves |
+| Attendee / applicant | a status screen with the next step, no event data | — |
+
+### Becoming an organiser (admin-approved)
+
+1. Sign up (or press **Become an organiser**) → `/become-organiser`.
+2. The application is filed with `organiser_status = 'pending'` and the admin
+   bell rings immediately.
+3. An admin opens **/admin → Applications**, reviews the details and approves or
+   declines with a note. Approve is the *only* thing in the platform that grants
+   organiser powers: it sets `role = event_owner` + `organiser_status = approved`.
+4. The applicant gets a notification either way; a declined applicant can fix
+   their details and re-apply.
+
+`POST /api/events` enforces the same rule server-side (403 unless an admin or an
+approved organiser), and `GET /api/events?mine=1` answers "my events" from the
+session — never from a query parameter.
+
+### Notification bell
+
+One component, two audiences, one table (`notifications`):
+
+- **Platform rows** (`user_id IS NULL`, `scope = 'platform'`) ring every admin's
+  bell: new organiser applications, signups, event submissions, registrations,
+  payments and refunds — from all parts of the platform.
+- **Personal rows** carry a `user_id`: registrations and payments for an
+  organiser's own events, and application decisions for the applicant.
+
+The bell polls every 30 seconds, badges unread counts, and marks items read on
+open (scoped to the caller's own audience). `/notifications` is the full history.
+
+### Session model
+
+`src/lib/auth.ts` — scrypt password hashes (`scrypt:<salt>:<hash>`), a 32-byte
+random cookie token whose **SHA-256 hash** is what the `sessions` table stores,
+30-day expiry, `httpOnly` + `sameSite=lax` + `secure` in production. Every event
+mutation goes through `requireEventAccess(slug)`: platform admins and the owning
+organiser only, so an attendee cannot read another organiser's guest list by
+guessing a slug.
+
+### Demo accounts
+
+After `POST /api/seed` (or **Load Demo Data**), all four share the password
+`demo1234`:
+
+| Email | Role |
+|---|---|
+| `admin@ueb.ng` | Platform admin — sees `/admin`, the queue and the platform bell |
+| `chidi@upec.edu.ng` | Approved organiser — owns several seeded events |
+| `amara@abccorp.ng` | Approved organiser — owns the rest |
+| `tunde@naijabiz.ng` | **Application pending** — so the admin queue has something to approve |
 
 ## Date & time convention
 
@@ -166,7 +231,13 @@ PATCH/DELETE    /api/registrations/[id]         approve, reject, hold, pay, chec
 GET/POST        /api/payments                   initialize → verify → refund
 GET/POST        /api/checkin                    venue verification + scan audit log
 GET             /api/tickets/[ticketNumber]     digital ticket lookup
-POST            /api/seed                       demo dataset
+POST/GET        /api/auth/signup|login|logout    accounts (scrypt + session cookie)
+GET             /api/auth/session                who am I: isAdmin / isOrganiser / canAccessDashboard
+GET/POST        /api/organiser-applications      admin queue · apply to become an organiser
+PATCH           /api/organiser-applications/[id] approve/decline (platform admin only)
+GET/PATCH       /api/notifications               the bell feed · mark read
+GET             /api/admin/overview              platform stats for the admin dashboard
+POST            /api/seed                       demo dataset (incl. demo accounts)
 ```
 
 ## Money model

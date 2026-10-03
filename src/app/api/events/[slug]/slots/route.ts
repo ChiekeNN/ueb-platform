@@ -4,6 +4,7 @@ import { eventSlots, events, registrations } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { badRequest, getEventBySlug, serverError } from "@/lib/server";
 import { expandSlots } from "@/lib/utils";
+import { requireEventAccess } from "@/lib/auth";
 
 /** GET /api/events/[slug]/slots — appointment / time-slot availability. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -48,8 +49,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     let created: { startDate: Date; endDate: Date; capacity: number | null; label: string | null }[] = [];
@@ -115,8 +121,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     if (body.id === "__all__" && body.isActive !== undefined) {
@@ -150,8 +161,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return badRequest("Slot id is required");
 

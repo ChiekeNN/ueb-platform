@@ -3,13 +3,19 @@ import { db } from "@/db";
 import { vendors } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { badRequest, getEventBySlug, serverError } from "@/lib/server";
+import { requireEventAccess } from "@/lib/auth";
 
 /** GET /api/events/[slug]/vendors — vendor/exhibitor roster with fees. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const rows = await db
       .select()
@@ -39,8 +45,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const body = await req.json();
     const list = Array.isArray(body.vendors) ? body.vendors : [body];

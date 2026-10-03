@@ -4,6 +4,7 @@ import { eventFeedback, vendors, payments, checkinLogs } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { badRequest, eventAnalytics, getEventBySlug, serverError } from "@/lib/server";
 import { formatDateStamp, toCSV } from "@/lib/utils";
+import { requireEventAccess } from "@/lib/auth";
 
 /**
  * GET /api/events/[slug]/report
@@ -13,8 +14,13 @@ import { formatDateStamp, toCSV } from "@/lib/utils";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const event = await getEventBySlug(slug);
-    if (!event) return badRequest("Event not found", 404);
+    // Private event data: admins and the owning organiser only.
+
+    const access = await requireEventAccess(slug);
+
+    if ("error" in access) return access.error;
+
+    const event = access.event;
 
     const url = new URL(req.url);
     const format = url.searchParams.get("format");

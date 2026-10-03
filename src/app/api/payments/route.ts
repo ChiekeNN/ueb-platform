@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { events, payments, registrations, ticketTiers } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import { badRequest, issueTicket, logMessage, serverError, assignSeat } from "@/lib/server";
-import { feeBreakdown, generatePaymentReference } from "@/lib/utils";
+import { notifyEvent } from "@/lib/notifications";
+import { feeBreakdown, formatCurrency, generatePaymentReference } from "@/lib/utils";
 
 /**
  * Payment gateway bridge.
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
         .set({ status: "refunded", meta: { ...(payment.meta ?? {}), refundedAt: new Date().toISOString() } })
         .where(eq(payments.id, payment.id))
         .returning();
+      let refunded: { attendeeName: string; eventSlug: string | null } | null = null;
       if (payment.registrationId) {
         const [reg] = await db.select().from(registrations).where(eq(registrations.id, payment.registrationId)).limit(1);
         await db
@@ -144,6 +146,7 @@ export async function POST(req: NextRequest) {
           .where(eq(registrations.id, payment.registrationId));
         if (reg) {
           const [event] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+          refunded = { attendeeName: reg.attendeeName, eventSlug: event?.slug ?? null };
           await db
             .update(events)
             .set({ totalRevenue: sql`GREATEST(${events.totalRevenue} - ${payment.amount}::numeric, 0)` })
@@ -161,6 +164,17 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+      await notifyEvent(payment.eventId, {
+        type: "refund",
+        title: `Refund issued — ${formatCurrency(payment.amount)}`,
+        body: refunded
+          ? `${refunded.attendeeName}'s ${formatCurrency(payment.amount)} payment was refunded (${payment.reference}).`
+          : `${formatCurrency(payment.amount)} was refunded (${payment.reference}).`,
+        link: refunded?.eventSlug ? `/events/${refunded.eventSlug}/manage` : "/dashboard",
+        severity: "warning",
+        meta: { paymentId: payment.id, reference: payment.reference },
+      });
+
       return NextResponse.json({ payment: updated, success: true });
     }
 
@@ -190,10 +204,12 @@ export async function POST(req: NextRequest) {
 
     let registration = null;
     let ticket = null;
+    let paidEventSlug: string | null = null;
     if (payment.registrationId) {
       const [reg] = await db.select().from(registrations).where(eq(registrations.id, payment.registrationId)).limit(1);
       if (reg) {
         const [event] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+        paidEventSlug = event?.slug ?? null;
         const amountPaid = parseFloat(reg.amountPaid ?? "0") + parseFloat(payment.amount ?? "0");
 
         const [regUpdated] = await db
@@ -239,6 +255,18 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+    }
+
+    // Money moved: the organiser hears about the sale, the admin feed records it.
+    if (registration) {
+      await notifyEvent(payment.eventId, {
+        type: "payment",
+        title: `Payment received — ${formatCurrency(payment.amount)}`,
+        body: `${registration.attendeeName} paid ${formatCurrency(payment.amount)} by ${updated.channel ?? "card"} (${updated.reference}).`,
+        link: paidEventSlug ? `/events/${paidEventSlug}/manage` : "/dashboard",
+        severity: "success",
+        meta: { paymentId: updated.id, reference: updated.reference, amount: updated.amount },
+      });
     }
 
     return NextResponse.json({ payment: updated, registration, ticket, success: true });

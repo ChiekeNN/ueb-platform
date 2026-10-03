@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
+import SessionProvider from "@/components/SessionProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -45,7 +46,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
         {/* Site-wide "Install UEB" offer — shows 5s after open, 10s on screen. */}
         <InstallAppPrompt />
       </body>
